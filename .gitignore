@@ -127,14 +127,25 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments / secrets
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Local scrape dumps / diagnostics (never commit live HTML)
+_diag/
+*.html.bak
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
 
 # Spyder project settings
 .spyderproject

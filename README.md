@@ -1,79 +1,54 @@
 # scraping-detranmg
 
-Scraper de **editais e lotes de leilão** do portal oficial [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/).
+Scraper de **editais e lotes de leilão** do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/).
 
-Pipeline local validado: scraping → Postgres (`raw`/`mart`) → notebooks de exploração e visualização.
+Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de exploração, análise e watchlist.
 
-## Status do projeto
+> Agentes de IA: comece por [`AGENTS.md`](AGENTS.md). Referência técnica: [`docs/REFERENCE.md`](docs/REFERENCE.md). Práticas do projeto: [`docs/PRACTICES.md`](docs/PRACTICES.md).
 
-| Fase | Descrição | Status |
-|------|-----------|--------|
-| 1 | Fundação (estrutura + módulo Python) | Concluída |
-| 2 | Notebook de exploração e validação (editais) | Concluída |
-| 3 | Postgres local (Docker Compose + camadas raw/mart) | Concluída |
-| 4 | Pipeline CLI + testes automatizados | Parcial (CLI ok; testes pendentes) |
-| 5 | Visualizações no notebook (Altair) | Concluída |
-| 6 | Scraping de lotes/veículos | Concluída |
-| 7 | Infraestrutura AWS | Planejado |
+## O que já foi feito
 
-Plano detalhado, snapshot da carga e roadmap: [`docs/PLANO.md`](docs/PLANO.md)
+| Entrega | Status |
+|---------|--------|
+| Pacote Python (`httpx` + BeautifulSoup) | Pronto |
+| Extração de editais (home) e lotes (listagem + paginação) | Pronto |
+| CLI `python -m detran_scraper.run [--lotes]` | Pronto |
+| Postgres local (Docker, porta **5435**) com camadas raw/mart | Pronto |
+| Notebooks 01–03 (exploração + Altair no mart) | Pronto |
+| Notebook 04 (watchlist / alerta de lotes novos) | Pronto |
+| Revalidação dos seletores após filtros novos no portal (2026-07) | OK — parsers intactos |
+| Testes automatizados / CI | Pendente |
+| Scrape da página de detalhe do lote | Pendente |
+| Persistência de `tipo_veiculo` (só existe como filtro UI) | Pendente |
+| Deploy AWS | Pendente |
 
-### Marco MVP local (esta PR)
-
-Entrega end-to-end em ambiente de desenvolvimento:
-
-- Extração de **21 editais** e **1.481 lotes** com `python -m detran_scraper.run --lotes`
-- Persistência em camadas `raw` (histórico) e `mart` (estado atual)
-- Três notebooks: exploração de editais, exploração de lotes, análise visual do `mart`
-
-### Próximos passos (pós-merge)
-
-| Trilha | Foco | Entregável principal |
-|--------|------|----------------------|
-| **A — Confiabilidade** | Testes + CI | `tests/test_parsers.py`, fixture HTML, GitHub Actions |
-| **C — Detalhe lote** | Página `/lotes/detalhes/{id}` | `valor_inicial`, cor, ano, combustível |
-| **D — Produção** | Empacotar → AWS | Dockerfile, ECS/Lambda + RDS |
+**Última carga de referência** (`2026-07-18`): 23 editais · 1.331 lotes no run; mart pode acumular mais (upsert sem purge).
 
 ## Estrutura
 
 ```
 scraping-detranmg/
-├── docker-compose.yml
+├── AGENTS.md                 # entrada para agentes de IA
+├── README.md
 ├── docs/
-│   └── PLANO.md                  # plano de trabalho e roadmap
-├── sql/
-│   └── 001_init.sql              # schemas raw + mart + lotes
+│   ├── REFERENCE.md          # URLs, seletores, schema, pipeline
+│   └── PRACTICES.md          # convenções já adotadas
+├── sql/001_init.sql
 ├── notebooks/
 │   ├── 01_exploracao_editais.ipynb
 │   ├── 02_exploracao_lotes.ipynb
-│   ├── 03_analise_mart.ipynb     # visualização Altair sobre mart
-│   └── 04_watchlist_alertas.ipynb # watchlist de modelos + alerta no notebook
+│   ├── 03_analise_mart.ipynb
+│   └── 04_watchlist_alertas.ipynb
 ├── src/detran_scraper/
-│   ├── client.py                 # HTTP + cookies + retry
-│   ├── models.py                 # dataclass Edital, Lote
-│   ├── parsers.py                # parse HTML → editais + lotes
-│   ├── storage.py                # persistência raw/mart
-│   └── run.py                    # CLI scrape → Postgres (--lotes)
+│   ├── client.py
+│   ├── models.py
+│   ├── parsers.py
+│   ├── storage.py
+│   └── run.py
+├── docker-compose.yml
 ├── pyproject.toml
 └── .env.example
 ```
-
-## Modelo de dados (camadas)
-
-```
-scrape (run.py --lotes)
-    │
-    ├─► raw.scrape_runs              metadado da execução
-    ├─► raw.editais / raw.lotes      snapshot a cada run (append-only)
-    ├─► mart.editais / mart.lotes    último estado por leilao_id / lote_id
-    └─► mart.editais_status_history  auditoria Publicado → Finalizado
-```
-
-| Tabela | Papel |
-|--------|-------|
-| `raw.editais` / `raw.lotes` | Histórico: cada extração gera novas linhas |
-| `mart.editais` / `mart.lotes` | Tratada: 1 linha por leilão / lote com estado atual |
-| `mart.editais_status_history` | Auditoria de mudanças de status |
 
 ## Setup
 
@@ -83,113 +58,59 @@ python -m venv .venv
 # source .venv/bin/activate   # Linux/macOS
 
 pip install -e ".[dev]"
-copy .env.example .env
+copy .env.example .env        # DATABASE_URL → localhost:5435
+docker compose up -d
 ```
 
-Dependências principais: `httpx`, `beautifulsoup4`, `pandas`, `sqlalchemy`, `altair`, `jupyter`.
-
-## Carga completa (referência)
-
-Última execução com `python -m detran_scraper.run --lotes`:
-
-| Camada | Registros |
-|--------|----------:|
-| `mart.editais` | 21 |
-| `mart.lotes` | 1.481 |
-
-Detalhes, top modelos e achados técnicos: [`docs/PLANO.md`](docs/PLANO.md).
-
-## Postgres local
-
-Porta do host: **5435** (evita conflito com outros Postgres locais).
+## Uso
 
 ```bash
-docker compose up -d
-docker compose ps
-
-copy .env.example .env   # DATABASE_URL → localhost:5435
-
+# só editais
 python -m detran_scraper.run
 
-# editais + lotes/veículos (todos os editais; use --max-editais para testes)
+# editais + lotes
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lotes --max-editais 1
-
-docker compose exec postgres psql -U scraper -d detran_leiloes -c \
-  "SELECT leilao_id, numero_edital, status FROM mart.editais LIMIT 5;"
 ```
-
-## Uso rápido (Python)
 
 ```python
 from detran_scraper import DetranClient, parse_editais, parse_lotes_from_pages
 
 with DetranClient() as client:
-    html = client.fetch_home()
-    editais = parse_editais(html)
+    editais = parse_editais(client.fetch_home())
     pages = client.fetch_lotes_pages("/lotes/lista-lotes/3416/2026")
     lotes = parse_lotes_from_pages(pages, leilao_id=3416)
-
-print(f"{len(editais)} editais, {len(lotes)} lotes")
 ```
+
+## Modelo de dados
+
+```
+run.py --lotes
+  ├─► raw.scrape_runs
+  ├─► raw.editais / raw.lotes     # snapshot por run
+  ├─► mart.editais / mart.lotes   # estado atual (upsert)
+  └─► mart.editais_status_history
+```
+
+### Campos (listagem)
+
+**Edital:** `leilao_id`, `numero_edital`, `municipio`, `patio`, `status`, `data_encerramento`, `url_detalhes`.
+
+**Lote:** `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual` (`valor_inicial` só no detalhe — ainda não scrapado).
+
+O portal oferece filtros de **tipo / marca / modelo / ano / cor / condição**, mas o tipo **não** vem no HTML do card; ver [`docs/REFERENCE.md`](docs/REFERENCE.md).
 
 ## Notebooks
 
 | Notebook | Objetivo |
 |----------|----------|
-| `01_exploracao_editais.ipynb` | Validar HTTP, HTML e parser de editais |
-| `02_exploracao_lotes.ipynb` | Validar parser de lotes e paginação |
-| `03_analise_mart.ipynb` | KPIs e gráficos Altair sobre dados no Postgres |
-| `04_watchlist_alertas.ipynb` | Visão consolidada, filtros de interesse e alerta de novos lotes |
-
-```bash
-jupyter notebook notebooks/03_analise_mart.ipynb
-```
-
-## Watchlist de lotes (MVP no notebook)
-
-Fluxo recomendado:
-
-1. Atualize a base com lotes:
-
-```bash
-python -m detran_scraper.run --lotes
-```
-
-2. Abra o notebook de watchlist:
+| `01` | Validar HTTP/HTML/parser de editais |
+| `02` | Validar parser de lotes e paginação |
+| `03` | KPIs e gráficos Altair no mart |
+| `04` | Watchlist: interesse + alerta de lotes novos |
 
 ```bash
 jupyter notebook notebooks/04_watchlist_alertas.ipynb
 ```
 
-3. No notebook:
-   - use a seção de visão consolidada para avaliar marcas/modelos atuais;
-   - edite o dicionário `INTERESSE` com seus critérios (marca, modelo, condição, município, faixa de preço, ano);
-   - execute as células finais para ver:
-     - lotes atuais aderentes ao interesse;
-     - alerta de **novos lotes** do último run (`first_seen_at = last_seen_at`) aderentes ao interesse.
-
-## Dados extraídos (editais)
-
-| Campo | Exemplo |
-|-------|---------|
-| `leilao_id` | `3416` |
-| `numero_edital` | `1692/2026` |
-| `municipio` | `Joao Monlevade` |
-| `patio` | `JS Servicos De Reboque E Estacionamento Ltda` |
-| `status` | `Publicado` / `Finalizado` |
-| `data_encerramento` | `2026-08-21 17:55:00` |
-| `url_detalhes` | link para lista de lotes |
-
-## Dados extraídos (lotes/veículos)
-
-| Campo | Exemplo |
-|-------|---------|
-| `lote_id` | `312935` |
-| `leilao_id` | `3416` |
-| `numero_lote` | `1` |
-| `condicao` | `CONSERVADO` |
-| `marca_modelo` | `HONDA/C100 BIZ 1999` |
-| `valor_atual` | `200.00` |
-| `valor_inicial` | `null` na listagem (detalhe do lote — fase futura) |
-| `url_detalhes` | `/lotes/detalhes/312935` |
+Fluxo watchlist: rodar `--lotes` → abrir o `04` → editar `INTERESSE` → ver aderentes e novos (`first_seen_at = last_seen_at`).

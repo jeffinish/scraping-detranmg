@@ -1,0 +1,14 @@
+---
+description: Entrada do projeto scraping-detranmg — ler AGENTS.md antes de alterar código
+alwaysApply: true
+---
+
+# scraping-detranmg
+
+Antes de editar: leia `AGENTS.md`.
+
+- Referência técnica (URLs, seletores, schema): `docs/REFERENCE.md`
+- Convenções do código: `docs/PRACTICES.md`
+- Visão geral humana: `README.md`
+
+Parser HTML só em `src/detran_scraper/parsers.py`. Não inventar campos ausentes no HTML do card (ex.: `tipo_veiculo`).
