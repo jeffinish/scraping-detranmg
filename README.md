@@ -46,7 +46,8 @@ scraping-detranmg/
 ├── notebooks/
 │   ├── 01_exploracao_editais.ipynb
 │   ├── 02_exploracao_lotes.ipynb
-│   └── 03_analise_mart.ipynb     # visualização Altair sobre mart
+│   ├── 03_analise_mart.ipynb     # visualização Altair sobre mart
+│   └── 04_watchlist_alertas.ipynb # watchlist de modelos + alerta no notebook
 ├── src/detran_scraper/
 │   ├── client.py                 # HTTP + cookies + retry
 │   ├── models.py                 # dataclass Edital, Lote
@@ -139,10 +140,34 @@ print(f"{len(editais)} editais, {len(lotes)} lotes")
 | `01_exploracao_editais.ipynb` | Validar HTTP, HTML e parser de editais |
 | `02_exploracao_lotes.ipynb` | Validar parser de lotes e paginação |
 | `03_analise_mart.ipynb` | KPIs e gráficos Altair sobre dados no Postgres |
+| `04_watchlist_alertas.ipynb` | Visão consolidada, filtros de interesse e alerta de novos lotes |
 
 ```bash
 jupyter notebook notebooks/03_analise_mart.ipynb
 ```
+
+## Watchlist de lotes (MVP no notebook)
+
+Fluxo recomendado:
+
+1. Atualize a base com lotes:
+
+```bash
+python -m detran_scraper.run --lotes
+```
+
+2. Abra o notebook de watchlist:
+
+```bash
+jupyter notebook notebooks/04_watchlist_alertas.ipynb
+```
+
+3. No notebook:
+   - use a seção de visão consolidada para avaliar marcas/modelos atuais;
+   - edite o dicionário `INTERESSE` com seus critérios (marca, modelo, condição, município, faixa de preço, ano);
+   - execute as células finais para ver:
+     - lotes atuais aderentes ao interesse;
+     - alerta de **novos lotes** do último run (`first_seen_at = last_seen_at`) aderentes ao interesse.
 
 ## Dados extraídos (editais)
 
