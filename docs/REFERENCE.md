@@ -39,7 +39,7 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 - Card: `h5.capa-titulo` → parent `div.card`
 - Município: `p.capa-municipio`
 - Pátio: `div.card-body.p-1.border-top b` (`N - Nome`)
-- Status: `div.text-primary` / `div.text-danger` → `Publicado` / `Finalizado`
+- Status: `div.text-primary` / `div.text-danger` / `div.text-success` → `Publicado` / `Finalizado` / `Em Andamento`
 - Encerramento: texto `Encerramento: DD/MM/YYYY HH:MM` em `div.col-12.text-center`
 - Link: `a[href*='/lotes/lista-lotes/']` → `leilao_id`
 
@@ -80,7 +80,7 @@ Definido em `sql/001_init.sql`. Postgres via Docker na porta host **5435**.
 | `raw.scrape_runs` | Metadado do run (`editais_count`, status) |
 | `raw.editais` / `raw.lotes` | Snapshot por run |
 | `mart.editais` / `mart.lotes` | Último estado + `first_seen_at` / `last_seen_at` |
-| `mart.editais_status_history` | Publicado ↔ Finalizado |
+| `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
 
 ## Modelos Python
 
