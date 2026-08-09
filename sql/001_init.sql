@@ -66,7 +66,7 @@ CREATE TABLE mart.editais_status_history (
 CREATE INDEX idx_editais_status_history_leilao
     ON mart.editais_status_history (leilao_id, changed_at);
 
--- Raw: lotes/itens por edital (populado em fase futura)
+-- Raw: lotes/itens por edital (snapshot por run)
 CREATE TABLE raw.lotes (
     id            BIGSERIAL PRIMARY KEY,
     run_id        UUID NOT NULL REFERENCES raw.scrape_runs (run_id),

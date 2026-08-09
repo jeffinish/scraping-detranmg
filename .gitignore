@@ -142,6 +142,11 @@ venv.bak/
 _diag/
 *.html.bak
 
+# Notebook exports
+notebooks/output/
+*.xlsx
+~$*
+
 # OS junk
 .DS_Store
 Thumbs.db
