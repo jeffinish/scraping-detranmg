@@ -40,6 +40,13 @@ def test_parse_editais_from_fixture():
     assert len(edital.raw_hash) == 64
 
 
+def test_parse_editais_em_andamento_status():
+    editais = parse_editais(_read("home_edital_em_andamento.html"))
+    assert len(editais) == 1
+    assert editais[0].status == "Em Andamento"
+    assert editais[0].numero_edital == "1713/2026"
+
+
 def test_parse_lotes_from_fixture():
     lotes = parse_lotes(_read("lote_card.html"), leilao_id=3416)
     assert len(lotes) == 1

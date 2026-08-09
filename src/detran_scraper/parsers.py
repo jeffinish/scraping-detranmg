@@ -180,11 +180,11 @@ def _parse_patio(card: Tag) -> str | None:
 
 
 def _parse_status(card: Tag) -> str | None:
-    el = card.select_one("div.text-primary, div.text-danger")
+    el = card.select_one("div.text-primary, div.text-danger, div.text-success")
     if el is None:
         return None
     status = _normalize_text(el.get_text())
-    return status if status in {"Publicado", "Finalizado"} else None
+    return status if status in {"Publicado", "Finalizado", "Em Andamento"} else None
 
 
 def _parse_encerramento(card: Tag) -> datetime | None:
