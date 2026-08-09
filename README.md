@@ -100,7 +100,7 @@ Notebooks `03` and `04` require a prior `--lotes` scrape.
 | Parser unit tests (fixtures) | `tipo_veiculo` enrichment |
 | Watchlist notebook | AWS deploy |
 
-Reference run (`2026-07-18`): 23 editais, 1,331 lots. Mart counts may be higher (upsert without purge).
+Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher (upsert without purge).
 
 ## Limitations
 

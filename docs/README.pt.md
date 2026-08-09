@@ -23,7 +23,7 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de explora�
 | Persistência de `tipo_veiculo` (só existe como filtro UI) | Pendente |
 | Deploy AWS | Pendente |
 
-**Última carga de referência** (`2026-07-18`): 23 editais · 1.331 lotes no run; mart pode acumular mais (upsert sem purge).
+**Última carga de referência** (`2026-08-09`): 87 editais · 8.605 lotes no run; mart pode acumular mais (upsert sem purge).
 
 ## Estrutura
 
