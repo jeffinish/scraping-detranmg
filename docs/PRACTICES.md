@@ -41,11 +41,11 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 | Já feito | Ainda aberto |
 |----------|----------------|
-| Pipeline CLI end-to-end | `tests/` + fixtures HTML |
-| Camadas raw/mart | CI (GitHub Actions) |
-| Retry HTTP | Scrape de `/lotes/detalhes/{id}` |
-| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Enriquecimento `tipo_veiculo` |
-| | Deploy AWS |
+| Pipeline CLI end-to-end | CI (GitHub Actions) |
+| Camadas raw/mart | Scrape de `/lotes/detalhes/{id}` |
+| Retry HTTP | Enriquecimento `tipo_veiculo` |
+| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Deploy AWS |
+| Testes mínimos de parser (`tests/fixtures/`) | Suite completa + cobertura |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 
