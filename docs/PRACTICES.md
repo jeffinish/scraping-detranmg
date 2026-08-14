@@ -28,8 +28,9 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
-3. Schema versionado em `sql/001_init.sql` — mudanças de coluna exigem SQL + models + storage alinhados.
+3. Schema versionado em `sql/001_init.sql` (+ incrementos `002_*.sql`). Mudanças de coluna do scraper exigem SQL + models + storage alinhados.
 4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape.
+5. **UI (`detran_ui`) não altera o scraper.** Flag de interesse em `mart.lotes_interesse`; thumbnail da listagem é URL derivada (não coluna em `mart.lotes`).
 
 ## Notebooks
 
@@ -46,6 +47,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Retry HTTP | Enriquecimento `tipo_veiculo` |
 | Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Deploy AWS |
 | Testes mínimos de parser (`tests/fixtures/`) | Suite completa + cobertura |
+| UI NiceGUI (`python -m detran_ui`) | Download de imagens / galeria do detalhe |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 
