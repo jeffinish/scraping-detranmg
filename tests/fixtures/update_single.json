@@ -1,0 +1,30 @@
+{
+  "arrematante": "xxx.xxx.xxx-xx",
+  "statusLeilao": "1",
+  "valorIncremento": "100.00",
+  "valor": "500.00",
+  "tempo": 39007,
+  "ultimosLances": [
+    {
+      "pre_arrematante": "xxx.xxx.xxx-xx",
+      "peso": null,
+      "valor_quilo": null,
+      "valor": "500.00",
+      "data_hora": "2026-08-19 20:35:59"
+    },
+    {
+      "pre_arrematante": "xxx.xxx.xxx-xx",
+      "peso": null,
+      "valor_quilo": null,
+      "valor": "400.00",
+      "data_hora": "2026-08-19 15:40:01"
+    },
+    {
+      "pre_arrematante": "xxx.xxx.xxx-xx",
+      "peso": null,
+      "valor_quilo": null,
+      "valor": "200.00",
+      "data_hora": "2026-08-18 15:02:02"
+    }
+  ]
+}

@@ -12,14 +12,14 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de explora�
 |---------|--------|
 | Pacote Python (`httpx` + BeautifulSoup) | Pronto |
 | Extração de editais (home) e lotes (listagem + paginação) | Pronto |
-| CLI `python -m detran_scraper.run [--lotes]` | Pronto |
+| CLI `python -m detran_scraper.run [--lotes] [--lances]` | Pronto |
 | Postgres local (Docker, porta **5435**) com camadas raw/mart | Pronto |
 | Notebooks 01–03 (exploração + Altair no mart) | Pronto |
 | Notebook 04 (watchlist / alerta de lotes novos) | Pronto |
 | Revalidação dos seletores após filtros novos no portal (2026-07) | OK — parsers intactos |
 | Testes automatizados de parser (fixtures HTML offline) | Mínimo |
 | CI (GitHub Actions) | Pendente |
-| Scrape da página de detalhe do lote | Pendente |
+| Histórico de lances + detalhe (zona logada, `--lances`) | Pronto |
 | Persistência de `tipo_veiculo` (só existe como filtro UI) | Pendente |
 | Deploy AWS | Pendente |
 
@@ -75,6 +75,7 @@ python -m detran_scraper.run
 # editais + lotes
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lotes --max-editais 1
+python -m detran_scraper.run --lances
 ```
 
 ```python
@@ -100,7 +101,7 @@ run.py --lotes
 
 **Edital:** `leilao_id`, `numero_edital`, `municipio`, `patio`, `status`, `data_encerramento`, `url_detalhes`.
 
-**Lote:** `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual` (`valor_inicial` só no detalhe — ainda não scrapado).
+**Lote:** `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual`. Com `--lances`: `valor_inicial`, cor, anos, combustível, incremento, status e tabela `lotes_lances`.
 
 O portal oferece filtros de **tipo / marca / modelo / ano / cor / condição**, mas o tipo **não** vem no HTML do card; ver [`REFERENCE.md`](REFERENCE.md).
 

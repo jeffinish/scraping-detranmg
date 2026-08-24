@@ -24,6 +24,8 @@ docker compose up -d
 
 # Minimal scrape (~2 min): one edital + its lots
 python -m detran_scraper.run --lotes --max-editais 1
+# Logged-in bids + lot detail fields (needs DETRAN_COOKIE in .env)
+python -m detran_scraper.run --lances --max-editais 1
 
 pytest
 jupyter notebook notebooks/03_analise_mart.ipynb

@@ -10,11 +10,14 @@ Fonte de verdade para agentes e desenvolvedores. Atualize este arquivo quando UR
 | Env | `DETRAN_BASE_URL` (ver `.env.example`) |
 | Home (editais) | `/` |
 | Listagem de lotes | `/lotes/lista-lotes/{leilao_id}/{ano}` + `?page=N` |
-| Detalhe do lote | `/lotes/detalhes/{lote_id}` (não scrapado na pipeline atual) |
+| Detalhe do lote | `/lotes/detalhes/{lote_id}` (HTML estático: valor inicial, cor, anos, combustível; tabela de lances vem vazia) |
+| JSON listagem (logado) | `GET /PDO/updateCountdown.php?user={id}&data[]={lote_id}` |
+| JSON detalhe (logado) | `GET /PDO/updateSingleCountdown.php?user={id}&data={lote_id}` |
+| Cookie | `DETRAN_COOKIE` (header `Cookie` do browser; não commitar) |
 | Edital PDF | `/documentos-leiloes/edital/{leilao_id}/{ano}` |
 | Tabela veículos PDF | `/documentos-leiloes/tabela-veiculos/{leilao_id}/{ano}` |
 
-HTTP: `httpx` com User-Agent de browser, cookies de sessão e retry em `403` / `429` / `503`.
+HTTP: `httpx` com User-Agent de browser, cookies de sessão e retry em `403` / `429` / `503`. `--lances` envia o cookie de usuário; **não** chama `POST /lotes/ajaxLance`.
 
 ## Filtros do portal (UI)
 
@@ -52,18 +55,27 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 - Paginação: `ul.pagination a.page-link[href*='page=']` → `parse_lotes_max_page`
 - Densidade típica: ~8 lotes/página
 
-### Detalhe (não na CLI ainda)
+### Detalhe HTML (`parse_lote_detalhe`)
 
-Campos observados na página: valor inicial, marca/modelo, cor, ano modelo, ano fabricação, combustível, condição. Sem campo “Tipo”.
+`dl dt` / `dd`: Valor Inicial, Cor, Ano do Modelo, Ano de Fabricação, Combustível. Sem campo “Tipo”. Galeria `img_{lote_id}_N.jpg` não é persistida.
+
+### JSON logado (`parse_update_countdown` / `parse_update_single`)
+
+- Countdown: `valor`, `valorIncremento`, `status` (1–5).
+- Single: o mesmo + `ultimosLances[]` (`valor`, `data_hora`, `pre_arrematante`, `peso`, `valor_quilo`).
+- ID do usuário: `#preArrematante` ou `#preArrematamte` (typo do portal na listagem).
 
 ## Pipeline
 
 ```
-python -m detran_scraper.run [--lotes] [--max-editais N]
+python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
+  → apply sql/003 (aditivo)
   → fetch_home → parse_editais
   → [opcional] fetch_lotes_pages por edital → parse_lotes_from_pages
+  → [--lances] Em Andamento: updateCountdown + updateSingleCountdown + HTML detalhe
   → persist_editais (raw append + mart upsert + status history)
-  → persist_lotes   (raw append + mart upsert)
+  → persist_lotes   (raw append + mart upsert; COALESCE nos campos de enriquecimento)
+  → persist_lances  (raw append + mart upsert; não apaga histórico)
   → raw.scrape_runs
 ```
 
@@ -73,20 +85,24 @@ python -m detran_scraper.run [--lotes] [--max-editais N]
 
 ## Schema (resumo)
 
-Definido em `sql/001_init.sql`. Postgres via Docker na porta host **5435**.
+Definido em `sql/001_init.sql` (install novo) e `sql/003_lotes_lances.sql` (volume existente; só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
 
 | Tabela | Papel |
 |--------|-------|
 | `raw.scrape_runs` | Metadado do run (`editais_count`, status) |
 | `raw.editais` / `raw.lotes` | Snapshot por run |
+| `raw.lotes_lances` | Snapshot de lances por run |
 | `mart.editais` / `mart.lotes` | Último estado + `first_seen_at` / `last_seen_at` |
+| `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
 | `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
 
 ## Modelos Python
 
-`Edital` e `Lote` em `models.py`: `@dataclass(frozen=True, slots=True)`. Para DataFrame use `dataclasses.asdict()`, não `__dict__`.
+`Edital`, `Lote` e `Lance` em `models.py`: `@dataclass(frozen=True, slots=True)`. Para DataFrame use `dataclasses.asdict()`, não `__dict__`.
 
 Campos de lote na listagem: `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual`, `valor_inicial=None`, `url_detalhes`, `raw_hash`.
+
+`--lances` preenche `valor_inicial`, `cor`, `ano_modelo`, `ano_fabricacao`, `combustivel`, `valor_incremento`, `status_lote` e grava `Lance`.
 
 ## Notebooks
 

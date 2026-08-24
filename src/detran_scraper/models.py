@@ -34,3 +34,22 @@ class Lote:
     url_detalhes: str
     scraped_at: datetime | None = None
     raw_hash: str | None = None
+    cor: str | None = None
+    ano_modelo: int | None = None
+    ano_fabricacao: int | None = None
+    combustivel: str | None = None
+    valor_incremento: Decimal | None = None
+    status_lote: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Lance:
+    """Lance efetivado de um lote (JSON da zona logada)."""
+
+    lote_id: int
+    leilao_id: int
+    valor: Decimal
+    lance_em: datetime | None
+    arrematante: str | None
+    peso: Decimal | None = None
+    valor_quilo: Decimal | None = None
