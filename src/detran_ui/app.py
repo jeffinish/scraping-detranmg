@@ -1,4 +1,4 @@
-"""App NiceGUI: filtros, cards, flag de interesse, proxy da foto da listagem."""
+"""API FastAPI: lotes, flag de interesse, proxy da foto, estáticos do Vite."""
 
 from __future__ import annotations
 
@@ -6,12 +6,19 @@ import logging
 import os
 import time
 from collections import OrderedDict
-from math import ceil
+from datetime import date, datetime
+from decimal import Decimal
+from pathlib import Path
+from typing import Annotated
 
 import httpx
+import uvicorn
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from nicegui import app, ui
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 
 from detran_scraper.client import DEFAULT_HEADERS
@@ -32,6 +39,8 @@ logger = logging.getLogger(__name__)
 PAGE_SIZE = 24
 CACHE_TTL_S = 300.0
 CACHE_MAX = 256
+REPO_ROOT = Path(__file__).resolve().parents[2]
+WEB_DIR = REPO_ROOT / "ui" / "dist"
 
 _engine: Engine | None = None
 _http = httpx.Client(headers=DEFAULT_HEADERS, timeout=20.0, follow_redirects=True)
@@ -45,15 +54,71 @@ _PLACEHOLDER = (
     b"</svg>"
 )
 
+app = FastAPI(title="Lotes DETRAN/MG")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class InteresseBody(BaseModel):
+    flagged: bool
+
 
 def _db() -> Engine:
     if _engine is None:
-        raise RuntimeError("Engine não inicializada")
+        raise HTTPException(status_code=503, detail="Engine não inicializada")
     return _engine
 
 
 def _placeholder() -> Response:
     return Response(content=_PLACEHOLDER, media_type="image/svg+xml")
+
+
+def _jsonable(value: object) -> object:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def lote_payload(item: dict) -> dict:
+    out = {key: _jsonable(value) for key, value in item.items()}
+    out["url_imagem"] = f"/imagens/{item['lote_id']}"
+    out["interesse"] = bool(item.get("interesse"))
+    return out
+
+
+def filtros_from_query(
+    marcas: list[str],
+    modelo_contem: str,
+    municipios: list[str],
+    condicoes: list[str],
+    status_edital: list[str],
+    valor_min: float | None,
+    valor_max: float | None,
+    ano_min: int | None,
+    ano_max: int | None,
+    somente_interesse: bool,
+) -> LoteFiltros:
+    return LoteFiltros(
+        marcas=marcas,
+        modelo_contem=modelo_contem.strip(),
+        municipios=municipios,
+        condicoes=condicoes,
+        status_edital=status_edital,
+        valor_min=valor_min,
+        valor_max=valor_max,
+        ano_min=ano_min,
+        ano_max=ano_max,
+        somente_interesse=somente_interesse,
+    )
 
 
 @app.get("/imagens/{lote_id}")
@@ -86,255 +151,82 @@ def proxy_imagem(lote_id: int) -> Response:
         return _placeholder()
 
 
-def _filtros_iniciais(opcoes: dict[str, list[str]]) -> LoteFiltros:
-    ativos = [s for s in ("Publicado", "Em Andamento") if s in opcoes["status_edital"]]
-    return LoteFiltros(status_edital=ativos)
-
-
-@ui.page("/")
-def index() -> None:
-    ui.colors(primary="#1565C0", secondary="#455A64", accent="#00897B")
-    ui.query("body").classes("bg-grey-2")
-
+@app.get("/api/opcoes")
+def api_opcoes() -> dict:
     try:
         opcoes = list_opcoes(_db())
+        opcoes["interesse_count"] = count_interesse(_db())
+        return opcoes
+    except HTTPException:
+        raise
     except Exception as exc:
-        with ui.card().classes("m-8 p-6 max-w-lg mx-auto"):
-            ui.label("Banco indisponível").classes("text-h6")
-            ui.label(str(exc)).classes("text-grey-8")
-            ui.label(
-                "Suba o Postgres (`docker compose up -d`) e rode "
-                "`python -m detran_scraper.run --lotes`."
-            ).classes("mt-2")
-        return
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    filtros = _filtros_iniciais(opcoes)
-    state = {"page": 1}
-    ready = False
 
-    def sync_from_widgets() -> None:
-        filtros.marcas = list(marcas.value or [])
-        filtros.modelo_contem = (modelo.value or "").strip()
-        filtros.municipios = list(municipios.value or [])
-        filtros.condicoes = list(condicoes.value or [])
-        filtros.status_edital = list(status.value or [])
-        filtros.valor_min = valor_min.value
-        filtros.valor_max = valor_max.value
-        filtros.ano_min = int(ano_min.value) if ano_min.value is not None else None
-        filtros.ano_max = int(ano_max.value) if ano_max.value is not None else None
-        filtros.somente_interesse = bool(somente.value)
-
-    def aplicar(_e=None) -> None:
-        if not ready:
-            return
-        state["page"] = 1
-        sync_from_widgets()
-        painel.refresh()
-
-    def limpar(_e=None) -> None:
-        inicial = _filtros_iniciais(opcoes)
-        marcas.value = []
-        modelo.value = ""
-        municipios.value = []
-        condicoes.value = []
-        status.value = list(inicial.status_edital)
-        valor_min.value = None
-        valor_max.value = None
-        ano_min.value = None
-        ano_max.value = None
-        somente.value = False
-        aplicar()
-
-    def toggle(lote_id: int, flagged: bool) -> None:
-        set_interesse(_db(), lote_id, flagged)
-        painel.refresh()
-
-    def abrir_detalhe(lote: dict) -> None:
-        with ui.dialog() as dialog, ui.card().classes("w-full max-w-lg p-0 overflow-hidden"):
-            ui.image(f"/imagens/{lote['lote_id']}").classes("w-full h-56 object-cover")
-            with ui.card_section():
-                ui.label(lote["marca_modelo"]).classes("text-h6")
-                with ui.row().classes("flex-wrap gap-2 mt-1"):
-                    ui.chip(lote["condicao"] or "—", color="primary", text_color="white")
-                    ui.chip(lote["status_edital"] or "—")
-                ui.separator().classes("my-3")
-                linhas = [
-                    ("Valor", lote["valor_fmt"]),
-                    ("Lote", lote["numero_lote"]),
-                    ("Edital", lote["numero_edital"]),
-                    ("Município", lote["municipio"]),
-                    ("Pátio", lote["patio"]),
-                    ("Ano", lote["ano_veiculo"] or "—"),
-                    ("Encerramento", lote["data_encerramento"] or "—"),
-                ]
-                for rotulo, valor in linhas:
-                    with ui.row().classes("w-full justify-between"):
-                        ui.label(rotulo).classes("text-grey-7")
-                        ui.label(str(valor)).classes("font-medium")
-                with ui.row().classes("w-full justify-between mt-4"):
-                    ui.link("Abrir no portal", lote["url_detalhes"], new_tab=True)
-                    ui.button("Fechar", on_click=dialog.close).props("flat")
-        dialog.open()
-
-    with ui.header().classes("items-center px-4"):
-        ui.button(icon="menu", on_click=lambda: drawer.toggle()).props(
-            "flat round color=white"
-        )
-        ui.label("Lotes DETRAN/MG").classes("text-h6")
-        ui.space()
-        somente = (
-            ui.switch("Somente interesse", value=False, on_change=aplicar)
-            .props("color=amber-8")
-            .classes("text-white")
-        )
-
-    drawer = ui.left_drawer(value=None, bordered=True).classes("bg-white p-4")
-    with drawer:
-        ui.label("Filtros").classes("text-subtitle1 text-grey-8 mb-2")
-        marcas = ui.select(
-            opcoes["marcas"],
-            label="Marca",
-            multiple=True,
-            with_input=True,
-            on_change=aplicar,
-        ).props("outlined dense use-chips").classes("w-full")
-        modelo = (
-            ui.input("Modelo contém", placeholder="ex.: ONIX")
-            .props("outlined dense")
-            .classes("w-full")
-            .on("keydown.enter", aplicar)
-        )
-        municipios = ui.select(
-            opcoes["municipios"],
-            label="Município",
-            multiple=True,
-            with_input=True,
-            on_change=aplicar,
-        ).props("outlined dense use-chips").classes("w-full")
-        condicoes = ui.select(
-            opcoes["condicoes"],
-            label="Condição",
-            multiple=True,
-            on_change=aplicar,
-        ).props("outlined dense use-chips").classes("w-full")
-        status = ui.select(
-            opcoes["status_edital"],
-            label="Status do edital",
-            multiple=True,
-            value=list(filtros.status_edital),
-            on_change=aplicar,
-        ).props("outlined dense use-chips").classes("w-full")
-        with ui.row().classes("w-full gap-2"):
-            valor_min = (
-                ui.number("Valor mín.", format="%.0f", value=None)
-                .props("outlined dense")
-                .classes("flex-1")
-                .on("keydown.enter", aplicar)
-            )
-            valor_max = (
-                ui.number("Valor máx.", format="%.0f", value=None)
-                .props("outlined dense")
-                .classes("flex-1")
-                .on("keydown.enter", aplicar)
-            )
-        with ui.row().classes("w-full gap-2"):
-            ano_min = (
-                ui.number("Ano mín.", format="%.0f", value=None)
-                .props("outlined dense")
-                .classes("flex-1")
-                .on("keydown.enter", aplicar)
-            )
-            ano_max = (
-                ui.number("Ano máx.", format="%.0f", value=None)
-                .props("outlined dense")
-                .classes("flex-1")
-                .on("keydown.enter", aplicar)
-            )
-        with ui.row().classes("w-full gap-2 mt-2"):
-            ui.button("Aplicar", on_click=aplicar, icon="filter_list").props(
-                "unelevated"
-            ).classes("flex-1")
-            ui.button("Limpar", on_click=limpar, icon="filter_alt_off").props(
-                "flat"
-            ).classes("flex-1")
-
-    @ui.refreshable
-    def painel() -> None:
-        sync_from_widgets()
-        lotes, total = list_lotes(
-            _db(), filtros, page=state["page"], page_size=PAGE_SIZE
-        )
+@app.get("/api/lotes")
+def api_lotes(
+    marcas: Annotated[list[str] | None, Query()] = None,
+    modelo_contem: str = "",
+    municipios: Annotated[list[str] | None, Query()] = None,
+    condicoes: Annotated[list[str] | None, Query()] = None,
+    status_edital: Annotated[list[str] | None, Query()] = None,
+    valor_min: float | None = None,
+    valor_max: float | None = None,
+    ano_min: int | None = None,
+    ano_max: int | None = None,
+    somente_interesse: bool = False,
+    page: int = 1,
+    page_size: int = PAGE_SIZE,
+) -> dict:
+    filtros = filtros_from_query(
+        marcas=marcas or [],
+        modelo_contem=modelo_contem,
+        municipios=municipios or [],
+        condicoes=condicoes or [],
+        status_edital=status_edital or [],
+        valor_min=valor_min,
+        valor_max=valor_max,
+        ano_min=ano_min,
+        ano_max=ano_max,
+        somente_interesse=somente_interesse,
+    )
+    try:
+        lotes, total = list_lotes(_db(), filtros, page=page, page_size=page_size)
         n_flag = count_interesse(_db())
-        max_page = max(1, ceil(total / PAGE_SIZE) if total else 1)
-        if state["page"] > max_page:
-            state["page"] = max_page
-            lotes, total = list_lotes(
-                _db(), filtros, page=state["page"], page_size=PAGE_SIZE
-            )
-
-        with ui.row().classes("w-full items-center px-2 mb-2"):
-            ui.label(f"{total:,} lotes".replace(",", ".")).classes("text-h6")
-            ui.chip(f"{n_flag} de interesse", icon="star").props("outline color=amber-9")
-        if total == 0:
-            with ui.card().classes("w-full p-8 items-center"):
-                ui.icon("search_off", size="lg").classes("text-grey-5")
-                ui.label("Nenhum lote com esses filtros.").classes("text-grey-7")
-            return
-
-        with ui.element("div").classes(
-            "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-        ):
-            for lote in lotes:
-                _card(lote, toggle, abrir_detalhe)
-
-        if max_page > 1:
-            with ui.row().classes("w-full justify-center mt-4"):
-                ui.pagination(
-                    1,
-                    max_page,
-                    value=state["page"],
-                    direction_links=True,
-                    on_change=lambda e: (
-                        state.update(page=int(e.value)),
-                        painel.refresh(),
-                    ),
-                )
-
-    with ui.column().classes("w-full max-w-screen-xl mx-auto p-4"):
-        ready = True
-        painel()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "lotes": [lote_payload(item) for item in lotes],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "interesse_count": n_flag,
+    }
 
 
-def _card(lote: dict, toggle, abrir_detalhe) -> None:
-    starred = bool(lote["interesse"])
-    with ui.card().classes("w-full no-shadow rounded-xl overflow-hidden"):
-        ui.image(f"/imagens/{lote['lote_id']}").classes(
-            "w-full h-44 object-cover cursor-pointer"
-        ).on("click", lambda l=lote: abrir_detalhe(l))
-        with ui.card_section().classes("p-3"):
-            with ui.row().classes("w-full items-center justify-between no-wrap"):
-                ui.label(lote["marca_modelo"]).classes(
-                    "text-subtitle1 font-medium ellipsis"
-                )
-                ui.button(
-                    icon="star" if starred else "star_border",
-                    on_click=lambda lid=lote["lote_id"], flag=starred: toggle(
-                        lid, not flag
-                    ),
-                ).props(
-                    "flat round dense color=amber-8" if starred else "flat round dense"
-                )
-            with ui.row().classes("gap-1 mt-1"):
-                ui.chip(lote["condicao"] or "—", color="primary").props("dense outline")
-                ui.chip(lote["status_edital"] or "—").props("dense outline")
-            ui.label(lote["valor_fmt"]).classes("text-h6 text-primary mt-1")
-            ui.label(
-                f"{lote['municipio']} · lote {lote['numero_lote']}"
-            ).classes("text-caption text-grey-7")
+@app.put("/api/lotes/{lote_id}/interesse")
+def api_interesse(lote_id: int, body: InteresseBody) -> dict:
+    try:
+        set_interesse(_db(), lote_id, body.flagged)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"lote_id": lote_id, "flagged": body.flagged}
+
+
+def _mount_ui() -> None:
+    if not WEB_DIR.is_dir():
+        logger.info("UI build ausente (%s); API-only", WEB_DIR)
+        return
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="ui")
+    logger.info("Servindo UI em %s", WEB_DIR)
 
 
 def run() -> None:
-    """Sobe a UI em http://127.0.0.1:8080 após aplicar o schema 002."""
+    """Sobe a API em http://127.0.0.1:8080 após aplicar o schema 002."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     load_dotenv()
     database_url = os.getenv("DATABASE_URL")
@@ -350,12 +242,6 @@ def run() -> None:
             f"Não conectou no Postgres ({exc}).\n"
             "Suba o banco: docker compose up -d"
         ) from exc
-    logger.info("Schema de interesse ok. Abrindo UI em http://127.0.0.1:8080")
-    ui.run(
-        title="Lotes DETRAN/MG",
-        host="127.0.0.1",
-        port=8080,
-        reload=False,
-        show=True,
-        favicon="⭐",
-    )
+    _mount_ui()
+    logger.info("Schema de interesse ok. API em http://127.0.0.1:8080")
+    uvicorn.run(app, host="127.0.0.1", port=8080, log_level="info")

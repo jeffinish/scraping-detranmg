@@ -2,7 +2,7 @@
 
 Scraper de **editais e lotes de leilão** do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/).
 
-Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de exploração, análise e watchlist, e UI NiceGUI para marcar lotes.
+Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de exploração, análise e watchlist, e UI Vite/React para marcar lotes.
 
 > Agentes de IA: comece por [`AGENTS.md`](../AGENTS.md). Referência técnica: [`REFERENCE.md`](REFERENCE.md). Práticas do projeto: [`PRACTICES.md`](PRACTICES.md).
 
@@ -16,7 +16,7 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de explora�
 | Postgres local (Docker, porta **5435**) com camadas raw/mart | Pronto |
 | Notebooks 01–03 (exploração + Altair no mart) | Pronto |
 | Notebook 04 (watchlist / alerta de lotes novos) | Pronto |
-| UI NiceGUI (`python -m detran_ui`, extra `[ui]`) | Pronto |
+| UI Vite/React (`ui/` + `python -m detran_ui`, extra `[ui]`) | Pronto |
 | Revalidação dos seletores após filtros novos no portal (2026-07) | OK — parsers intactos |
 | Testes automatizados de parser (fixtures HTML offline) | Mínimo |
 | CI (GitHub Actions) | Pendente |
@@ -48,7 +48,8 @@ scraping-detranmg/
 │   ├── parsers.py
 │   ├── storage.py
 │   └── run.py
-├── src/detran_ui/            # UI NiceGUI (`pip install -e ".[ui]"`)
+├── src/detran_ui/            # API FastAPI (`pip install -e ".[ui]"`)
+├── ui/                       # cliente Vite + React
 ├── tests/
 │   └── test_parsers.py
 ├── docker-compose.yml
@@ -131,9 +132,10 @@ Para marcar lotes na interface (em vez do dicionário `INTERESSE`):
 ```bash
 pip install -e ".[ui]"
 python -m detran_ui
+cd ui && npm install && npm run dev
 ```
 
-Abre `http://127.0.0.1:8080`. A flag grava em `mart.lotes_interesse` (filtro rápido “Somente interesse”).
+A API sobe em `http://127.0.0.1:8080`. A flag grava em `mart.lotes_interesse` (filtro rápido “Somente interesse”). Após `npm run build`, o mesmo `python -m detran_ui` serve a UI nesse endereço.
 
 ## Testes
 

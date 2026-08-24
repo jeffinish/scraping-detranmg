@@ -10,12 +10,12 @@ Leia este arquivo antes de alterar o repositório. Detalhes técnicos e convenç
 | URLs, seletores, schema, pipeline | [docs/REFERENCE.md](docs/REFERENCE.md) |
 | Convenções já adotadas no código | [docs/PRACTICES.md](docs/PRACTICES.md) |
 | Código do scraper | `src/detran_scraper/` |
-| UI local (lotes + flag) | `src/detran_ui/` |
+| UI local (API + Vite/React) | `src/detran_ui/` + `ui/` |
 | Schema Postgres | `sql/001_init.sql` + `sql/002_lotes_interesse.sql` + `sql/003_lotes_lances.sql` |
 
 ## Escopo do projeto
 
-Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/): editais + lotes → Postgres (`raw` / `mart`) → notebooks + UI NiceGUI.
+Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/): editais + lotes → Postgres (`raw` / `mart`) → notebooks + UI Vite/React (API FastAPI).
 
 **Não está no escopo atual:** AWS, download de fotos, `tipo_veiculo` (filtro do portal, não campo no lote), POST de lance (`/lotes/ajaxLance`).
 
@@ -28,7 +28,7 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 | Campos de domínio | `models.py` + `sql/001_init.sql` + `sql/003_*.sql` + `storage.py` |
 | Orquestração CLI | `run.py` |
 | Lances / detalhe (zona logada) | `parsers.py` (JSON + HTML) + `client.py` (`DETRAN_COOKIE`) |
-| UI / flag de interesse | `src/detran_ui/` (não misturar com o scraper) |
+| UI / flag de interesse | `src/detran_ui/` (API) + `ui/` (Vite/React); não misturar com o scraper |
 | Exploração / watchlist | `notebooks/` (não duplicar lógica de produção sem necessidade) |
 
 ## Regras operacionais
@@ -47,4 +47,7 @@ python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lances
 pip install -e ".[ui]"
 python -m detran_ui
+cd ui && npm install && npm run dev
 ```
+
+Após `npm run build`, `python -m detran_ui` serve API + UI em `http://127.0.0.1:8080`.

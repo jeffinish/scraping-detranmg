@@ -111,9 +111,12 @@ Campos de lote na listagem: `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `
 ```bash
 pip install -e ".[ui]"
 python -m detran_ui
+cd ui && npm install && npm run dev
 ```
 
-NiceGUI em `http://127.0.0.1:8080`. Pacote `src/detran_ui/` (irmão do scraper). Filtros no SQL (marca/modelo/município/condição/status/valor/ano) + flag em `mart.lotes_interesse`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Filtros no SQL (marca/modelo/município/condição/status/valor/ano) + flag em `mart.lotes_interesse`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+
+Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 
 ## Notebooks
 

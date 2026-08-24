@@ -1,4 +1,4 @@
-"""Checks da camada de query da UI (sem Postgres, sem NiceGUI)."""
+"""Checks da camada de query da UI (sem Postgres)."""
 
 from detran_ui.queries import (
     SCHEMA_SQL,

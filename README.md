@@ -1,6 +1,6 @@
 # scraping-detranmg
 
-Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → Jupyter analytics, watchlist alerts, and a local NiceGUI browser.
+Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → Jupyter analytics, watchlist alerts, and a local Vite/React UI.
 
 > Portuguese docs: [`docs/README.pt.md`](docs/README.pt.md) · Technical reference: [`docs/REFERENCE.md`](docs/REFERENCE.md)
 
@@ -33,6 +33,8 @@ jupyter notebook notebooks/03_analise_mart.ipynb
 # Browse lots + star a watchlist (after a --lotes scrape)
 pip install -e ".[ui]"
 python -m detran_ui
+cd ui && npm install && npm run dev
+# After `npm run build`, python -m detran_ui serves API + UI at :8080
 ```
 
 ## Architecture
@@ -45,7 +47,7 @@ flowchart LR
   Models --> Storage["storage.py"]
   Storage --> PG["Postgres :5435"]
   PG --> NB["notebooks"]
-  PG --> UI["NiceGUI detran_ui"]
+  PG --> UI["Vite React + FastAPI"]
   Run["run.py CLI"] --> Client
   Run --> Storage
 ```
@@ -57,7 +59,7 @@ flowchart LR
 | Domain | `models.py` | Frozen dataclasses, `Decimal` for BRL |
 | Persist | `storage.py` | Raw append + mart upsert |
 | CLI | `run.py` | Orchestration |
-| UI | `detran_ui/` | Browse, filter, star lots |
+| UI | `detran_ui/` + `ui/` | FastAPI + Vite/React: browse, filter, star lots |
 
 ## Data model
 
@@ -99,7 +101,7 @@ with DetranClient() as client:
 | 03 | `03_analise_mart.ipynb` | KPIs and Altair charts on mart |
 | 04 | `04_watchlist_alertas.ipynb` | Interest filters + new-lot alerts |
 
-Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in a GUI instead of editing `INTERESSE` in the notebook: `python -m detran_ui`.
+Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in a GUI instead of editing `INTERESSE` in the notebook: `python -m detran_ui` (API) and `npm run dev` from `ui/`.
 
 ## Project status
 
@@ -109,7 +111,7 @@ Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in a GUI 
 | Raw/mart Postgres layers | CI (GitHub Actions) |
 | Parser unit tests (fixtures) | `tipo_veiculo` enrichment |
 | Watchlist notebook | AWS deploy |
-| Local NiceGUI lot browser | Image download / detail gallery |
+| Local Vite/React lot browser | Image download / detail gallery |
 
 Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher (upsert without purge).
 
@@ -124,7 +126,8 @@ Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher 
 ```
 scraping-detranmg/
 ├── src/detran_scraper/     # production scraper
-├── src/detran_ui/          # local NiceGUI (optional extra [ui])
+├── src/detran_ui/          # FastAPI (optional extra [ui])
+├── ui/                     # Vite + React client
 ├── tests/fixtures/         # offline HTML for parser tests
 ├── sql/                    # 001_init.sql + 002_lotes_interesse.sql + 003_lotes_lances.sql
 ├── notebooks/              # exploration and analytics
