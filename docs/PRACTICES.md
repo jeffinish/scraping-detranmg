@@ -4,14 +4,14 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 ## Arquitetura
 
-1. **Parser é a fonte única de HTML.** Seletores e regex ficam em `parsers.py`. Notebooks exploram; não viram segunda implementação de produção.
+1. **Parser é a fonte única de HTML/JSON de domínio.** Seletores, regex e parse dos endpoints `PDO/update*.php` ficam em `parsers.py`.
 2. **Cliente só faz HTTP.** `DetranClient` baixa páginas, mantém cookies, aplica retry. Não parseia domínio.
 3. **Storage só persiste.** `storage.py` fala com Postgres (raw/mart). Sem HTTP.
 4. **CLI orquestra.** `run.py` amarra client → parsers → storage.
 
 ## Domínio e dados
 
-1. **Dataclasses imutáveis** (`frozen=True`, `slots=True`) para `Edital` / `Lote`.
+1. **Dataclasses imutáveis** (`frozen=True`, `slots=True`) para `Edital` / `Lote` / `Lance`.
 2. **Dinheiro como `Decimal`**, não `float`. Parsing BRL via `parse_brl`.
 3. **Hash do card** (`raw_hash`) para detectar mudança de HTML do item.
 4. **Camadas raw/mart:** raw = histórico append-only; mart = upsert do estado atual. Não misturar responsabilidades.
@@ -20,7 +20,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 ## HTTP e robustez
 
 1. **User-Agent + Accept-Language de browser** — sem isso o portal responde 403.
-2. **Sessão com cookies** (`httpx.Client` persistente).
+2. **Sessão com cookies** (`httpx.Client` persistente). `--lances` usa `DETRAN_COOKIE`; nunca `POST /lotes/ajaxLance`.
 3. **Retry exponencial** só em status retryable (`403`, `429`, `503`).
 4. **Paginação explícita** (`parse_lotes_max_page` + `?page=N`), não infinite scroll.
 
@@ -28,8 +28,8 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
-3. Schema versionado em `sql/001_init.sql` — mudanças de coluna exigem SQL + models + storage alinhados.
-4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape.
+3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida.
+4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
 
 ## Notebooks
 
@@ -42,8 +42,8 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Já feito | Ainda aberto |
 |----------|----------------|
 | Pipeline CLI end-to-end | CI (GitHub Actions) |
-| Camadas raw/mart | Scrape de `/lotes/detalhes/{id}` |
-| Retry HTTP | Enriquecimento `tipo_veiculo` |
+| Camadas raw/mart + lances (`--lances`) | Enriquecimento `tipo_veiculo` |
+| Retry HTTP | Download de imagens / galeria |
 | Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Deploy AWS |
 | Testes mínimos de parser (`tests/fixtures/`) | Suite completa + cobertura |
 

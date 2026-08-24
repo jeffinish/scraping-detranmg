@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import time
-from typing import Self
+from typing import Any, Self
 
 import httpx
 
@@ -22,6 +23,16 @@ DEFAULT_HEADERS = {
 RETRYABLE_STATUS = frozenset({403, 429, 503})
 
 
+def normalize_cookie(raw: str | None) -> str | None:
+    """Normaliza o header Cookie colado do browser (sem logar o valor)."""
+    if not raw:
+        return None
+    cookie = raw.strip().strip('"').strip("'")
+    if cookie.lower().startswith("cookie:"):
+        cookie = cookie.split(":", 1)[1].strip()
+    return cookie or None
+
+
 class DetranClient:
     """Cliente com sessão persistente (cookies) e retry exponencial."""
 
@@ -30,15 +41,43 @@ class DetranClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = 30.0,
         max_retries: int = 3,
+        cookie: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.max_retries = max_retries
+        headers = dict(DEFAULT_HEADERS)
+        normalized = normalize_cookie(cookie)
+        if normalized:
+            headers["Cookie"] = normalized
         self._client = httpx.Client(
             base_url=self.base_url,
-            headers=DEFAULT_HEADERS,
+            headers=headers,
             timeout=timeout,
             follow_redirects=True,
         )
+
+    def _get(self, path: str, params: Any = None) -> httpx.Response:
+        if path.startswith("http"):
+            path = path.replace(self.base_url, "", 1)
+        if not path.startswith("/"):
+            path = f"/{path}"
+
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            try:
+                response = self._client.get(path, params=params)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                if exc.response.status_code not in RETRYABLE_STATUS:
+                    raise
+            except httpx.RequestError as exc:
+                last_error = exc
+            if attempt < self.max_retries - 1:
+                time.sleep(2**attempt)
+        assert last_error is not None
+        raise last_error
 
     def fetch(self, path: str) -> str:
         """Baixa HTML de um path relativo ao portal.
@@ -52,27 +91,15 @@ class DetranClient:
         Raises:
             httpx.HTTPError: Se todas as tentativas falharem.
         """
-        if path.startswith("http"):
-            path = path.replace(self.base_url, "", 1)
-        if not path.startswith("/"):
-            path = f"/{path}"
+        return self._get(path).text
 
-        last_error: Exception | None = None
-        for attempt in range(self.max_retries):
-            try:
-                response = self._client.get(path)
-                response.raise_for_status()
-                return response.text
-            except httpx.HTTPStatusError as exc:
-                last_error = exc
-                if exc.response.status_code not in RETRYABLE_STATUS:
-                    raise
-            except httpx.RequestError as exc:
-                last_error = exc
-            if attempt < self.max_retries - 1:
-                time.sleep(2**attempt)
-        assert last_error is not None
-        raise last_error
+    def fetch_json(self, path: str, params: Any = None) -> Any:
+        """GET JSON. Falha se a resposta não for JSON (cookie expirado vira HTML)."""
+        response = self._get(path, params=params)
+        try:
+            return response.json()
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Resposta não-JSON em {path} (sessão expirada?)") from exc
 
     def fetch_home(self) -> str:
         """Baixa o HTML da página inicial com lista de editais."""
@@ -95,6 +122,22 @@ class DetranClient:
         for page in range(2, max_page + 1):
             pages.append(self.fetch(f"{lista_path}?page={page}"))
         return pages
+
+    def fetch_lote_detalhe(self, lote_id: int) -> str:
+        """HTML estático de `/lotes/detalhes/{id}` (lances vêm no JSON)."""
+        return self.fetch(f"/lotes/detalhes/{lote_id}")
+
+    def fetch_update_countdown(self, user_id: str, lote_ids: list[int]) -> Any:
+        """Último lance dos cards: `GET /PDO/updateCountdown.php`."""
+        params = [("user", user_id), *[("data[]", str(lote_id)) for lote_id in lote_ids]]
+        return self.fetch_json("/PDO/updateCountdown.php", params=params)
+
+    def fetch_update_single(self, user_id: str, lote_id: int) -> Any:
+        """Histórico de lances: `GET /PDO/updateSingleCountdown.php`."""
+        return self.fetch_json(
+            "/PDO/updateSingleCountdown.php",
+            params={"user": user_id, "data": str(lote_id)},
+        )
 
     def close(self) -> None:
         """Fecha a sessão HTTP."""

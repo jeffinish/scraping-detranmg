@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from dataclasses import replace
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -11,7 +12,7 @@ from bs4 import BeautifulSoup, Tag
 
 from decimal import Decimal
 
-from detran_scraper.models import Edital, Lote
+from detran_scraper.models import Edital, Lance, Lote
 
 DEFAULT_BASE_URL = "https://leilao.detran.mg.gov.br"
 
@@ -128,6 +129,106 @@ def parse_brl(value: str) -> Decimal | None:
         return None
     inteiro = match.group(1).replace(".", "")
     return Decimal(f"{inteiro}.{match.group(2)}")
+
+
+def parse_pre_arrematante_id(html: str) -> str | None:
+    """ID do pré-arrematante logado (typo do portal na listagem: preArrematamte)."""
+    soup = BeautifulSoup(html, "lxml")
+    el = soup.select_one("#preArrematante, #preArrematamte")
+    if el is None:
+        return None
+    value = str(el.get("value") or "").strip()
+    return value or None
+
+
+def parse_lote_detalhe(html: str) -> dict[str, object]:
+    """Campos estáticos do HTML de `/lotes/detalhes/{id}` (tabela de lances vem vazia)."""
+    soup = BeautifulSoup(html, "lxml")
+    campos: dict[str, str] = {}
+    for dt in soup.select("dl dt"):
+        dd = dt.find_next_sibling("dd")
+        if dd is None:
+            continue
+        label = " ".join(dt.get_text().split()).strip().rstrip(":")
+        value = " ".join(dd.get_text().split()).strip()
+        if value:
+            campos[label] = value
+
+    combustivel = campos.get("Combustível")
+    return {
+        "valor_inicial": parse_brl(campos["Valor Inicial"]) if "Valor Inicial" in campos else None,
+        "cor": campos.get("Cor"),
+        "ano_modelo": _parse_ano(campos.get("Ano do Modelo")),
+        "ano_fabricacao": _parse_ano(campos.get("Ano de Fabricação")),
+        "combustivel": combustivel,
+    }
+
+
+def parse_update_countdown(payload: object) -> dict[int, dict[str, object]]:
+    """Estado ao vivo dos cards: `GET /PDO/updateCountdown.php`."""
+    if not isinstance(payload, dict) or payload.get("error") is True:
+        return {}
+    out: dict[int, dict[str, object]] = {}
+    for key, raw in payload.items():
+        if key == "error" or not str(key).isdigit() or not isinstance(raw, dict):
+            continue
+        estado = _parse_lance_estado(int(key), raw)
+        if estado is not None:
+            out[int(key)] = estado
+    return out
+
+
+def parse_update_single(
+    payload: object,
+    *,
+    lote_id: int,
+    leilao_id: int,
+) -> tuple[dict[str, object] | None, list[Lance]]:
+    """Histórico de lances: `GET /PDO/updateSingleCountdown.php`."""
+    if not isinstance(payload, dict) or payload.get("error") is True:
+        return None, []
+    estado = _parse_lance_estado(lote_id, payload)
+    lances: list[Lance] = []
+    rows = payload.get("ultimosLances") or []
+    if not isinstance(rows, list):
+        return estado, []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        valor = _parse_json_decimal(row.get("valor"))
+        if valor is None:
+            continue
+        lances.append(
+            Lance(
+                lote_id=lote_id,
+                leilao_id=leilao_id,
+                valor=valor,
+                lance_em=_parse_lance_em(row.get("data_hora")),
+                arrematante=_clean_optional_text(row.get("pre_arrematante")),
+                peso=_parse_json_decimal(row.get("peso")),
+                valor_quilo=_parse_json_decimal(row.get("valor_quilo")),
+            )
+        )
+    return estado, lances
+
+
+def apply_lote_enriquecimento(
+    lote: Lote,
+    *,
+    estado: dict[str, object] | None = None,
+    detalhe: dict[str, object] | None = None,
+) -> Lote:
+    """Aplica JSON/detalhe sem apagar campos já preenchidos com None."""
+    updates: dict[str, object] = {}
+    for src in (estado, detalhe):
+        if not src:
+            continue
+        for key, value in src.items():
+            if key == "lote_id" or value is None:
+                continue
+            if hasattr(lote, key):
+                updates[key] = value
+    return replace(lote, **updates) if updates else lote
 
 
 def _parse_card(card: Tag, base_url: str) -> Edital | None:
@@ -263,3 +364,62 @@ def _parse_lote_card(card: Tag, leilao_id: int, base_url: str) -> Lote | None:
         url_detalhes=url_detalhes,
         raw_hash=compute_card_hash(str(card)),
     )
+
+
+def _parse_ano(value: str | None) -> int | None:
+    if not value:
+        return None
+    match = re.search(r"(19|20)\d{2}", value)
+    return int(match.group()) if match else None
+
+
+def _clean_optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = " ".join(str(value).split()).strip()
+    if not text or text == "-":
+        return None
+    return text
+
+
+def _parse_json_decimal(value: object) -> Decimal | None:
+    if value is None or value == "" or value is False:
+        return None
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    text = str(value).strip()
+    if text.startswith("R$"):
+        return parse_brl(text)
+    try:
+        return Decimal(text)
+    except Exception:
+        return None
+
+
+def _parse_lance_em(value: object) -> datetime | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_lance_estado(lote_id: int, raw: dict) -> dict[str, object] | None:
+    status = raw.get("statusLeilao", raw.get("status"))
+    status_lote = str(status).strip() if status is not None and str(status).strip() else None
+    valor = _parse_json_decimal(raw.get("valor"))
+    incremento = _parse_json_decimal(raw.get("valorIncremento"))
+    if valor is None and incremento is None and status_lote is None:
+        return None
+    return {
+        "lote_id": lote_id,
+        "valor_atual": valor,
+        "valor_incremento": incremento,
+        "status_lote": status_lote,
+    }

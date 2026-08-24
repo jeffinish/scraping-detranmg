@@ -1,0 +1,16 @@
+{
+  "309489": {
+    "arrematante": "xxx.xxx.xxx-xx",
+    "valor": "500.00",
+    "valorIncremento": "100.00",
+    "status": "1",
+    "tempo": 39007
+  },
+  "309493": {
+    "arrematante": "xxx.xxx.xxx-xx",
+    "valor": "950.00",
+    "valorIncremento": "100.00",
+    "status": "1",
+    "tempo": 39307
+  }
+}

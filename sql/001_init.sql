@@ -76,10 +76,16 @@ CREATE TABLE raw.lotes (
     numero_lote   VARCHAR(20),
     condicao      VARCHAR(20),
     marca_modelo  TEXT,
-    valor_inicial NUMERIC(12, 2),
-    valor_atual   NUMERIC(12, 2),
-    url_detalhes  TEXT,
-    raw_hash      VARCHAR(64),
+    valor_inicial    NUMERIC(12, 2),
+    valor_atual      NUMERIC(12, 2),
+    url_detalhes     TEXT,
+    raw_hash         VARCHAR(64),
+    cor              VARCHAR(50),
+    ano_modelo       INTEGER,
+    ano_fabricacao   INTEGER,
+    combustivel      VARCHAR(50),
+    valor_incremento NUMERIC(12, 2),
+    status_lote      VARCHAR(8),
     UNIQUE (run_id, lote_id)
 );
 
@@ -93,13 +99,55 @@ CREATE TABLE mart.lotes (
     numero_lote   VARCHAR(20),
     condicao      VARCHAR(20),
     marca_modelo  TEXT,
-    valor_inicial NUMERIC(12, 2),
-    valor_atual   NUMERIC(12, 2),
-    url_detalhes  TEXT,
-    first_seen_at TIMESTAMPTZ NOT NULL,
-    last_seen_at  TIMESTAMPTZ NOT NULL,
-    raw_hash      VARCHAR(64),
-    last_run_id   UUID REFERENCES raw.scrape_runs (run_id)
+    valor_inicial    NUMERIC(12, 2),
+    valor_atual      NUMERIC(12, 2),
+    url_detalhes     TEXT,
+    first_seen_at    TIMESTAMPTZ NOT NULL,
+    last_seen_at     TIMESTAMPTZ NOT NULL,
+    raw_hash         VARCHAR(64),
+    last_run_id      UUID REFERENCES raw.scrape_runs (run_id),
+    cor              VARCHAR(50),
+    ano_modelo       INTEGER,
+    ano_fabricacao   INTEGER,
+    combustivel      VARCHAR(50),
+    valor_incremento NUMERIC(12, 2),
+    status_lote      VARCHAR(8)
 );
 
 CREATE INDEX idx_mart_lotes_leilao_id ON mart.lotes (leilao_id);
+
+-- Raw: lances observados por run (append-only)
+CREATE TABLE raw.lotes_lances (
+    id           BIGSERIAL PRIMARY KEY,
+    run_id       UUID NOT NULL REFERENCES raw.scrape_runs (run_id),
+    scraped_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    lote_id      INTEGER NOT NULL,
+    leilao_id    INTEGER NOT NULL,
+    valor        NUMERIC(12, 2) NOT NULL,
+    lance_em     TIMESTAMP,
+    arrematante  TEXT,
+    peso         NUMERIC(12, 4),
+    valor_quilo  NUMERIC(12, 2)
+);
+
+CREATE INDEX idx_raw_lotes_lances_run ON raw.lotes_lances (run_id);
+CREATE INDEX idx_raw_lotes_lances_lote ON raw.lotes_lances (lote_id);
+
+-- Mart: lances únicos acumulados (não apaga se o portal sumir com o histórico)
+CREATE TABLE mart.lotes_lances (
+    id            BIGSERIAL PRIMARY KEY,
+    lote_id       INTEGER NOT NULL REFERENCES mart.lotes (lote_id),
+    leilao_id     INTEGER NOT NULL,
+    valor         NUMERIC(12, 2) NOT NULL,
+    lance_em      TIMESTAMP,
+    arrematante   TEXT,
+    peso          NUMERIC(12, 4),
+    valor_quilo   NUMERIC(12, 2),
+    first_seen_at TIMESTAMPTZ NOT NULL,
+    last_seen_at  TIMESTAMPTZ NOT NULL
+);
+
+CREATE UNIQUE INDEX uq_mart_lotes_lances
+    ON mart.lotes_lances (lote_id, valor, lance_em, arrematante)
+    NULLS NOT DISTINCT;
+CREATE INDEX idx_mart_lotes_lances_lote ON mart.lotes_lances (lote_id);
