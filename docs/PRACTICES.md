@@ -28,8 +28,9 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
-3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida.
+3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/002_*.sql` (UI) e `sql/003_*.sql` (lances; sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida; a UI aplica o `002`.
 4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
+5. **UI (`detran_ui`) não altera o scraper.** Flag de interesse em `mart.lotes_interesse`; thumbnail da listagem é URL derivada (não coluna em `mart.lotes`).
 
 ## Notebooks
 
@@ -46,6 +47,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Retry HTTP | Download de imagens / galeria |
 | Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Deploy AWS |
 | Testes mínimos de parser (`tests/fixtures/`) | Suite completa + cobertura |
+| UI NiceGUI (`python -m detran_ui`) | Download de imagens / galeria do detalhe |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 

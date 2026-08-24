@@ -10,11 +10,12 @@ Leia este arquivo antes de alterar o repositório. Detalhes técnicos e convenç
 | URLs, seletores, schema, pipeline | [docs/REFERENCE.md](docs/REFERENCE.md) |
 | Convenções já adotadas no código | [docs/PRACTICES.md](docs/PRACTICES.md) |
 | Código do scraper | `src/detran_scraper/` |
-| Schema Postgres | `sql/001_init.sql` + `sql/003_lotes_lances.sql` |
+| UI local (lotes + flag) | `src/detran_ui/` |
+| Schema Postgres | `sql/001_init.sql` + `sql/002_lotes_interesse.sql` + `sql/003_lotes_lances.sql` |
 
 ## Escopo do projeto
 
-Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/): editais + lotes → Postgres (`raw` / `mart`) → notebooks.
+Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/): editais + lotes → Postgres (`raw` / `mart`) → notebooks + UI NiceGUI.
 
 **Não está no escopo atual:** AWS, download de fotos, `tipo_veiculo` (filtro do portal, não campo no lote), POST de lance (`/lotes/ajaxLance`).
 
@@ -27,6 +28,7 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 | Campos de domínio | `models.py` + `sql/001_init.sql` + `sql/003_*.sql` + `storage.py` |
 | Orquestração CLI | `run.py` |
 | Lances / detalhe (zona logada) | `parsers.py` (JSON + HTML) + `client.py` (`DETRAN_COOKIE`) |
+| UI / flag de interesse | `src/detran_ui/` (não misturar com o scraper) |
 | Exploração / watchlist | `notebooks/` (não duplicar lógica de produção sem necessidade) |
 
 ## Regras operacionais
@@ -34,7 +36,7 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 1. Preferir o menor diff que resolve o problema.
 2. Não inventar campos no card que o HTML não expõe (ex.: `tipo_veiculo`).
 3. Validar parser contra HTML real ou fixture antes de “corrigir” no escuro.
-4. Após mudança de schema: `sql/001_init.sql` (installs novos) + incremento aditivo `sql/003_*.sql` (volumes existentes; sem DROP). Models e storage juntos.
+4. Após mudança de schema: `sql/001_init.sql` (installs novos) + incrementos aditivos `sql/002_*.sql` (UI, aplica na subida) e `sql/003_*.sql` (volumes existentes; sem DROP). Models e storage juntos.
 5. Não commitar `.env`, dumps HTML locais (`_diag/`), nem outputs grandes de notebook sem pedido.
 
 ## Comando de referência
@@ -43,4 +45,6 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 docker compose up -d
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lances
+pip install -e ".[ui]"
+python -m detran_ui
 ```

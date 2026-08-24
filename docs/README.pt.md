@@ -2,7 +2,7 @@
 
 Scraper de **editais e lotes de leilão** do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/).
 
-Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de exploração, análise e watchlist.
+Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de exploração, análise e watchlist, e UI NiceGUI para marcar lotes.
 
 > Agentes de IA: comece por [`AGENTS.md`](../AGENTS.md). Referência técnica: [`REFERENCE.md`](REFERENCE.md). Práticas do projeto: [`PRACTICES.md`](PRACTICES.md).
 
@@ -16,6 +16,7 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de explora�
 | Postgres local (Docker, porta **5435**) com camadas raw/mart | Pronto |
 | Notebooks 01–03 (exploração + Altair no mart) | Pronto |
 | Notebook 04 (watchlist / alerta de lotes novos) | Pronto |
+| UI NiceGUI (`python -m detran_ui`, extra `[ui]`) | Pronto |
 | Revalidação dos seletores após filtros novos no portal (2026-07) | OK — parsers intactos |
 | Testes automatizados de parser (fixtures HTML offline) | Mínimo |
 | CI (GitHub Actions) | Pendente |
@@ -35,7 +36,7 @@ scraping-detranmg/
 │   ├── README.pt.md          # esta página
 │   ├── REFERENCE.md          # URLs, seletores, schema, pipeline
 │   └── PRACTICES.md          # convenções já adotadas
-├── sql/001_init.sql
+├── sql/                      # 001_init.sql + 002_lotes_interesse.sql + 003_lotes_lances.sql
 ├── notebooks/
 │   ├── 01_exploracao_editais.ipynb
 │   ├── 02_exploracao_lotes.ipynb
@@ -47,6 +48,7 @@ scraping-detranmg/
 │   ├── parsers.py
 │   ├── storage.py
 │   └── run.py
+├── src/detran_ui/            # UI NiceGUI (`pip install -e ".[ui]"`)
 ├── tests/
 │   └── test_parsers.py
 ├── docker-compose.yml
@@ -94,7 +96,8 @@ run.py --lotes
   ├─► raw.scrape_runs
   ├─► raw.editais / raw.lotes     # snapshot por run
   ├─► mart.editais / mart.lotes   # estado atual (upsert)
-  └─► mart.editais_status_history
+  ├─► mart.editais_status_history
+  └─► mart.lotes_interesse        # flag da UI (sql/002)
 ```
 
 ### Campos (listagem)
@@ -122,6 +125,15 @@ jupyter notebook notebooks/04_watchlist_alertas.ipynb
 ```
 
 Fluxo watchlist: rodar `--lotes` → abrir o `04` → editar `INTERESSE` → ver aderentes e novos (`first_seen_at = last_seen_at`).
+
+Para marcar lotes na interface (em vez do dicionário `INTERESSE`):
+
+```bash
+pip install -e ".[ui]"
+python -m detran_ui
+```
+
+Abre `http://127.0.0.1:8080`. A flag grava em `mart.lotes_interesse` (filtro rápido “Somente interesse”).
 
 ## Testes
 

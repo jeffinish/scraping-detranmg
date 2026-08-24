@@ -1,6 +1,6 @@
 # scraping-detranmg
 
-Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → Jupyter analytics and watchlist alerts.
+Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → Jupyter analytics, watchlist alerts, and a local NiceGUI browser.
 
 > Portuguese docs: [`docs/README.pt.md`](docs/README.pt.md) · Technical reference: [`docs/REFERENCE.md`](docs/REFERENCE.md)
 
@@ -29,6 +29,10 @@ python -m detran_scraper.run --lances --max-editais 1
 
 pytest
 jupyter notebook notebooks/03_analise_mart.ipynb
+
+# Browse lots + star a watchlist (after a --lotes scrape)
+pip install -e ".[ui]"
+python -m detran_ui
 ```
 
 ## Architecture
@@ -41,6 +45,7 @@ flowchart LR
   Models --> Storage["storage.py"]
   Storage --> PG["Postgres :5435"]
   PG --> NB["notebooks"]
+  PG --> UI["NiceGUI detran_ui"]
   Run["run.py CLI"] --> Client
   Run --> Storage
 ```
@@ -52,6 +57,7 @@ flowchart LR
 | Domain | `models.py` | Frozen dataclasses, `Decimal` for BRL |
 | Persist | `storage.py` | Raw append + mart upsert |
 | CLI | `run.py` | Orchestration |
+| UI | `detran_ui/` | Browse, filter, star lots |
 
 ## Data model
 
@@ -60,10 +66,11 @@ run.py --lotes
   ├─► raw.scrape_runs              # run metadata
   ├─► raw.editais / raw.lotes      # append-only snapshot per run
   ├─► mart.editais / mart.lotes    # current state (upsert)
-  └─► mart.editais_status_history  # status transitions
+  ├─► mart.editais_status_history  # status transitions
+  └─► mart.lotes_interesse         # UI star flag (sql/002, applied on UI start)
 ```
 
-**Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). `valor_inicial` and vehicle attributes like color/year require the detail page (not scraped yet).
+**Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). `--lances` fills `valor_inicial`, color, years, fuel, increment, status, and `lotes_lances`.
 
 ## CLI
 
@@ -71,6 +78,7 @@ run.py --lotes
 python -m detran_scraper.run              # editais only
 python -m detran_scraper.run --lotes      # editais + all lots
 python -m detran_scraper.run --lotes --max-editais 1
+python -m detran_scraper.run --lances
 ```
 
 ```python
@@ -91,7 +99,7 @@ with DetranClient() as client:
 | 03 | `03_analise_mart.ipynb` | KPIs and Altair charts on mart |
 | 04 | `04_watchlist_alertas.ipynb` | Interest filters + new-lot alerts |
 
-Notebooks `03` and `04` require a prior `--lotes` scrape.
+Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in a GUI instead of editing `INTERESSE` in the notebook: `python -m detran_ui`.
 
 ## Project status
 
@@ -101,6 +109,7 @@ Notebooks `03` and `04` require a prior `--lotes` scrape.
 | Raw/mart Postgres layers | CI (GitHub Actions) |
 | Parser unit tests (fixtures) | `tipo_veiculo` enrichment |
 | Watchlist notebook | AWS deploy |
+| Local NiceGUI lot browser | Image download / detail gallery |
 
 Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher (upsert without purge).
 
@@ -114,9 +123,10 @@ Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher 
 
 ```
 scraping-detranmg/
-├── src/detran_scraper/     # production code
+├── src/detran_scraper/     # production scraper
+├── src/detran_ui/          # local NiceGUI (optional extra [ui])
 ├── tests/fixtures/         # offline HTML for parser tests
-├── sql/001_init.sql        # Postgres schema
+├── sql/                    # 001_init.sql + 002_lotes_interesse.sql + 003_lotes_lances.sql
 ├── notebooks/              # exploration and analytics
 ├── docs/                   # technical reference (PT)
 └── docker-compose.yml      # Postgres on host port 5435
