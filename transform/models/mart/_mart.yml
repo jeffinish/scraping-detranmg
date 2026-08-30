@@ -1,0 +1,88 @@
+version: 2
+
+models:
+  - name: mart_editais
+    description: >
+      Estado atual de cada leilão, reconstruído a partir de raw.editais.
+      Equivalente a mart.editais (upsert Python).
+    columns:
+      - name: leilao_id
+        description: Identificador do leilão no portal.
+        tests:
+          - unique
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: "{{ var('edital_status_values') }}"
+      - name: first_seen_at
+        tests:
+          - not_null
+      - name: last_seen_at
+        tests:
+          - not_null
+      - name: status_changed_at
+        tests:
+          - not_null
+
+  - name: mart_lotes
+    description: >
+      Estado atual de cada lote. Listagem do último snapshot;
+      campos de enriquecimento com last-non-null (equivalente ao COALESCE do storage.py).
+    columns:
+      - name: lote_id
+        tests:
+          - unique
+          - not_null
+      - name: leilao_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('mart_editais')
+                field: leilao_id
+      - name: condicao
+        description: CONSERVADO, SUCATA ou INSERVÍVEL (portal).
+
+  - name: mart_editais_status_history
+    description: Transições de status reconstruídas a partir de raw.editais.
+    columns:
+      - name: id
+        tests:
+          - unique
+          - not_null
+      - name: leilao_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('mart_editais')
+                field: leilao_id
+      - name: new_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: "{{ var('edital_status_values') }}"
+
+  - name: mart_lotes_lances
+    description: >
+      Lances únicos acumulados. Só inclui lote_id presente em mart_lotes
+      (mesma regra do persist_lances em storage.py).
+    columns:
+      - name: id
+        tests:
+          - unique
+          - not_null
+      - name: lote_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('mart_lotes')
+                field: lote_id
+      - name: valor
+        tests:
+          - not_null

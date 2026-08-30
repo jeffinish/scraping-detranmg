@@ -31,6 +31,18 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida.
 4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
 
+## Transformação (dbt)
+
+1. **Scraper = EL.** `run.py` + `storage.py` gravam `raw.*` (e `mart.*` até cutover).
+2. **dbt = T.** Models em `transform/` materializam `mart_dbt.*` a partir de `raw.*`.
+3. **Cutover condicionado.** Rodar `scripts/reconcile_mart.py` antes de apontar notebooks para `mart_dbt`.
+4. **Testes dbt** em `transform/models/*/_*.yml` (unique, not_null, relationships, freshness em `scrape_runs`).
+
+## Orquestração local
+
+1. Airflow via `docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow`.
+2. DAG `detran_scrape_dbt`: scrape → dbt run → dbt test. Ver [ORCHESTRATION.md](ORCHESTRATION.md).
+
 ## Notebooks
 
 1. Usar para exploração, análise e watchlist — não para substituir a CLI de carga.
@@ -44,8 +56,9 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Pipeline CLI end-to-end | CI (GitHub Actions) |
 | Camadas raw/mart + lances (`--lances`) | Enriquecimento `tipo_veiculo` |
 | Retry HTTP | Download de imagens / galeria |
-| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Deploy AWS |
-| Testes mínimos de parser (`tests/fixtures/`) | Suite completa + cobertura |
+| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Cutover mart Python → mart_dbt |
+| Testes mínimos de parser (`tests/fixtures/`) | Deploy AWS |
+| dbt + Airflow local (`transform/`, `docs/ORCHESTRATION.md`) | Suite completa + cobertura |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 

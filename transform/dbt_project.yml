@@ -1,0 +1,23 @@
+name: detran_transform
+version: 1.0.0
+config-version: 2
+
+profile: detran
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+models:
+  detran_transform:
+    staging:
+      +materialized: view
+      +schema: staging
+    mart:
+      +materialized: table
+      +schema: mart_dbt
+
+vars:
+  # Aceitos no portal (parse_editais)
+  edital_status_values: ["Publicado", "Finalizado", "Em Andamento"]

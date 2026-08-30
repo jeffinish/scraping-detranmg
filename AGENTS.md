@@ -9,12 +9,14 @@ Leia este arquivo antes de alterar o repositório. Detalhes técnicos e convenç
 | Visão humana / setup | [README.md](README.md) |
 | URLs, seletores, schema, pipeline | [docs/REFERENCE.md](docs/REFERENCE.md) |
 | Convenções já adotadas no código | [docs/PRACTICES.md](docs/PRACTICES.md) |
+| Orquestração local (Airflow + dbt) | [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) |
 | Código do scraper | `src/detran_scraper/` |
+| Transformação SQL (dbt) | `transform/` |
 | Schema Postgres | `sql/001_init.sql` + `sql/003_lotes_lances.sql` |
 
 ## Escopo do projeto
 
-Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/): editais + lotes → Postgres (`raw` / `mart`) → notebooks.
+Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/): editais + lotes → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → notebooks.
 
 **Não está no escopo atual:** AWS, download de fotos, `tipo_veiculo` (filtro do portal, não campo no lote), POST de lance (`/lotes/ajaxLance`).
 
@@ -26,7 +28,9 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 | HTTP, headers, paginação | `client.py` |
 | Campos de domínio | `models.py` + `sql/001_init.sql` + `sql/003_*.sql` + `storage.py` |
 | Orquestração CLI | `run.py` |
+| Transformação mart (dbt) | `transform/` |
 | Lances / detalhe (zona logada) | `parsers.py` (JSON + HTML) + `client.py` (`DETRAN_COOKIE`) |
+| Orquestração agendada | `airflow/dags/` + `docker-compose.airflow.yml` |
 | Exploração / watchlist | `notebooks/` (não duplicar lógica de produção sem necessidade) |
 
 ## Regras operacionais
@@ -43,4 +47,5 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 docker compose up -d
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lances
+cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
 ```

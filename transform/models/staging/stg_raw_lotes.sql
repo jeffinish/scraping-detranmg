@@ -1,0 +1,20 @@
+SELECT
+    id,
+    run_id,
+    scraped_at,
+    leilao_id,
+    lote_id,
+    numero_lote,
+    condicao,
+    marca_modelo,
+    valor_inicial,
+    valor_atual,
+    url_detalhes,
+    raw_hash,
+    cor,
+    ano_modelo,
+    ano_fabricacao,
+    combustivel,
+    valor_incremento,
+    status_lote
+FROM {{ source('raw', 'lotes') }}

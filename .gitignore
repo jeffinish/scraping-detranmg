@@ -189,6 +189,18 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+
+# Airflow local
+airflow/logs/
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/webserver_config.py
+airflow/standalone_admin_password.txt
+
 # Cursor  
 #  Cursor is an AI-powered code editor.`.cursorignore` specifies files/directories to 
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data

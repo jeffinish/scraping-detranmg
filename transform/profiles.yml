@@ -1,0 +1,15 @@
+# Copie para ~/.dbt/profiles.yml ou use: dbt <cmd> --profiles-dir .
+# Host/porta padrão = docker compose local (5435 no host, 5432 no container Airflow).
+
+detran:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_HOST', 'localhost') }}"
+      user: "{{ env_var('DBT_USER', 'scraper') }}"
+      password: "{{ env_var('DBT_PASSWORD', 'scraper') }}"
+      port: "{{ env_var('DBT_PORT', '5435') | int }}"
+      dbname: "{{ env_var('DBT_DATABASE', 'detran_leiloes') }}"
+      schema: mart_dbt
+      threads: 4

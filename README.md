@@ -1,6 +1,6 @@
 # scraping-detranmg
 
-Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → Jupyter analytics and watchlist alerts.
+Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → Jupyter analytics and watchlist alerts.
 
 > Portuguese docs: [`docs/README.pt.md`](docs/README.pt.md) · Technical reference: [`docs/REFERENCE.md`](docs/REFERENCE.md)
 
@@ -8,6 +8,8 @@ Local data pipeline that scrapes **auction notices and vehicle lots** from the [
 
 - Layered Python package (~700 LOC): HTTP client → HTML parsers → immutable domain models → Postgres persistence
 - **Raw / mart** pattern with run tracking, status history, and `first_seen_at` / `last_seen_at` for change detection
+- **dbt** rebuilds `mart_dbt` from `raw` with tests and docs (parallel to Python mart until cutover)
+- **Airflow** local DAG: daily scrape → dbt run → dbt test
 - Resilient HTTP: browser-like headers, session cookies, exponential retry on transient errors
 - Offline parser tests with HTML fixtures (no network in CI-ready tests)
 
@@ -29,6 +31,14 @@ python -m detran_scraper.run --lances --max-editais 1
 
 pytest
 jupyter notebook notebooks/03_analise_mart.ipynb
+
+# dbt (after scrape; Postgres on :5435)
+pip install -e ".[dbt]"
+cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
+python scripts/reconcile_mart.py
+
+# Airflow UI (optional)
+docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 ```
 
 ## Architecture
@@ -40,7 +50,10 @@ flowchart LR
   Parsers --> Models["Edital / Lote"]
   Models --> Storage["storage.py"]
   Storage --> PG["Postgres :5435"]
+  PG --> Dbt["dbt mart_dbt"]
   PG --> NB["notebooks"]
+  Airflow["Airflow DAG"] --> Run
+  Airflow --> Dbt
   Run["run.py CLI"] --> Client
   Run --> Storage
 ```
@@ -101,6 +114,8 @@ Notebooks `03` and `04` require a prior `--lotes` scrape.
 | Raw/mart Postgres layers | CI (GitHub Actions) |
 | Parser unit tests (fixtures) | `tipo_veiculo` enrichment |
 | Watchlist notebook | AWS deploy |
+| dbt `mart_dbt` + reconcile script | Cutover notebooks → mart_dbt |
+| Airflow local DAG | Curadoria analítica pós-cutover |
 
 Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher (upsert without purge).
 
@@ -114,7 +129,10 @@ Reference run (`2026-08-09`): 87 editais, 8,605 lots. Mart counts may be higher 
 
 ```
 scraping-detranmg/
-├── src/detran_scraper/     # production code
+├── src/detran_scraper/     # production code (EL)
+├── transform/              # dbt: staging + mart_dbt
+├── airflow/dags/           # Airflow DAGs
+├── scripts/                # reconcile_mart.py
 ├── tests/fixtures/         # offline HTML for parser tests
 ├── sql/001_init.sql        # Postgres schema
 ├── notebooks/              # exploration and analytics
