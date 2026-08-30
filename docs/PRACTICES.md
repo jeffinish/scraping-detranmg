@@ -28,14 +28,15 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
-3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida.
+3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida; a UI aplica o `004`.
 4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
+5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Rodar `dbt run` após cada scrape antes de abrir a UI.
 
 ## Transformação (dbt)
 
 1. **Scraper = EL.** `run.py` + `storage.py` gravam `raw.*` (e `mart.*` até cutover).
 2. **dbt = T.** Models em `transform/` materializam `mart_dbt.*` a partir de `raw.*`.
-3. **Cutover condicionado.** Rodar `scripts/reconcile_mart.py` antes de apontar notebooks para `mart_dbt`.
+3. **Cutover condicionado.** Rodar `scripts/reconcile_mart.py` antes de apontar notebooks para `mart_dbt`. A UI já lê `mart_dbt` por padrão (`MART_SCHEMA`).
 4. **Testes dbt** em `transform/models/*/_*.yml` (unique, not_null, relationships, freshness em `scrape_runs`).
 
 ## Orquestração local
@@ -56,9 +57,10 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Pipeline CLI end-to-end | CI (GitHub Actions) |
 | Camadas raw/mart + lances (`--lances`) | Enriquecimento `tipo_veiculo` |
 | Retry HTTP | Download de imagens / galeria |
-| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Cutover mart Python → mart_dbt |
+| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Cutover notebooks → mart_dbt |
 | Testes mínimos de parser (`tests/fixtures/`) | Deploy AWS |
 | dbt + Airflow local (`transform/`, `docs/ORCHESTRATION.md`) | Suite completa + cobertura |
+| UI Vite/React lendo `mart_dbt` (`ui/` + `python -m detran_ui`) | Download de imagens / galeria do detalhe |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 

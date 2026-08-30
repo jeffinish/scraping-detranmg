@@ -21,3 +21,7 @@ models:
 vars:
   # Aceitos no portal (parse_editais)
   edital_status_values: ["Publicado", "Finalizado", "Em Andamento"]
+
+on-run-end:
+  - "CREATE UNIQUE INDEX IF NOT EXISTS uq_mart_dbt_mart_lotes_lote_id ON mart_dbt.mart_lotes (lote_id)"
+  - "CREATE UNIQUE INDEX IF NOT EXISTS uq_mart_dbt_mart_editais_leilao_id ON mart_dbt.mart_editais (leilao_id)"

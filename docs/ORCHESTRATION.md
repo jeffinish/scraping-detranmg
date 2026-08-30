@@ -8,6 +8,7 @@ Contrato para replicar este padrão em outros projetos de scraping/EL.
 |------|-------|
 | `python -m detran_scraper.run` | **EL** — grava `raw.*` e `mart.*` (Python, até cutover) |
 | `transform/` (dbt) | **T** — reconstrói `mart_dbt.*` a partir de `raw.*` |
+| `src/detran_ui/` + `ui/` | **Consumo** — lê `mart_dbt`; grava `mart.lotes_interesse` |
 | Airflow (`docker-compose.airflow.yml`) | Scheduler: scrape → `dbt run` → `dbt test` |
 | `scripts/reconcile_mart.py` | Gate de cutover: compara `mart` vs `mart_dbt` |
 
@@ -32,7 +33,12 @@ cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
 # 4. Reconciliação
 python scripts/reconcile_mart.py
 
-# 5. Airflow (opcional)
+# 5. UI (lê mart_dbt — obrigatório após dbt)
+pip install -e ".[ui]"
+python -m detran_ui
+# dev: cd ui && npm run dev
+
+# 6. Airflow (opcional)
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 # UI: http://localhost:8080
 ```
@@ -41,7 +47,8 @@ docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 
 | Variável | Uso |
 |----------|-----|
-| `DATABASE_URL` | Scraper + reconcile (host: `localhost:5435`) |
+| `DATABASE_URL` | Scraper + reconcile + UI (host: `localhost:5435`) |
+| `MART_SCHEMA` | Schema analítico da UI (default: `mart_dbt`) |
 | `DBT_HOST`, `DBT_PORT`, … | dbt (`profiles.yml`); no Airflow: `postgres:5432` |
 | `DETRAN_COOKIE` | Opcional; necessário para `--lances` (não no DAG padrão) |
 
@@ -70,6 +77,7 @@ Não duplicar lógica de transformação no Python depois do cutover — o mart 
 
 ## Cutover (quando `reconcile_mart.py` passar)
 
-1. Apontar notebooks `03` e `04` para `mart_dbt.*` (ou renomear schema)
-2. Remover upsert de mart em `storage.py` (rodada seguinte)
-3. Só então: curadoria extra (split `marca_modelo`, tombstone, etc.) com testes regressando o mart
+1. ~~Apontar UI para `mart_dbt`~~ (feito — `MART_SCHEMA=mart_dbt`)
+2. Apontar notebooks `03` e `04` para `mart_dbt.*`
+3. Remover upsert de mart em `storage.py` (rodada seguinte)
+4. Curadoria extra (split `marca_modelo`, tombstone, etc.) com testes regressando o mart
