@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
+DBT_BIN = os.environ.get("DBT_BIN", "/home/airflow/.local/bin/dbt")
+
 # Dentro do compose, postgres expõe 5432; no host é 5435.
 DB_URL = os.environ.get(
     "DATABASE_URL",
@@ -46,13 +48,13 @@ with DAG(
 
     dbt_run = BashOperator(
         task_id="dbt_run",
-        bash_command="cd /opt/project/transform && dbt run --profiles-dir .",
+        bash_command=f"cd /opt/project/transform && {DBT_BIN} run --profiles-dir .",
         env=DBT_ENV,
     )
 
     dbt_test = BashOperator(
         task_id="dbt_test",
-        bash_command="cd /opt/project/transform && dbt test --profiles-dir .",
+        bash_command=f"cd /opt/project/transform && {DBT_BIN} test --profiles-dir .",
         env=DBT_ENV,
     )
 

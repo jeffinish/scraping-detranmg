@@ -10,6 +10,7 @@ Leia este arquivo antes de alterar o repositório. Detalhes técnicos e convenç
 | URLs, seletores, schema, pipeline | [docs/REFERENCE.md](docs/REFERENCE.md) |
 | Convenções já adotadas no código | [docs/PRACTICES.md](docs/PRACTICES.md) |
 | Orquestração local (Airflow + dbt) | [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) |
+| Roadmap / próximos passos | [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) |
 | Código do scraper | `src/detran_scraper/` |
 | Transformação SQL (dbt) | `transform/` |
 | UI local (API + Vite/React) | `src/detran_ui/` + `ui/` |

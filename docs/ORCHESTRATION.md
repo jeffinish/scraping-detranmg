@@ -39,8 +39,11 @@ python -m detran_ui
 # dev: cd ui && npm run dev
 
 # 6. Airflow (opcional)
+# Pré-requisito: banco `airflow` no Postgres (sql/002 ou CREATE DATABASE manual)
+docker compose -f docker-compose.yml -f docker-compose.airflow.yml build airflow
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
-# UI: http://localhost:8080
+docker exec detran_airflow airflow dags trigger detran_scrape_dbt
+# UI Airflow: http://localhost:8080 (credenciais no 1º boot — ver logs do container)
 ```
 
 ## Variáveis de ambiente
