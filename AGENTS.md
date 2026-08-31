@@ -30,16 +30,16 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 | HTTP, headers, paginação | `client.py` |
 | Campos de domínio | `models.py` + `sql/001_init.sql` + `sql/003_*.sql` + `storage.py` |
 | Orquestração CLI | `run.py` |
-| Transformação mart (dbt) | `transform/` |
+| Transformação mart (dbt) | `transform/` (models + `seeds/marca_aliases.csv`) |
 | Lances / detalhe (zona logada) | `parsers.py` (JSON + HTML) + `client.py` (`DETRAN_COOKIE`) |
 | Orquestração agendada | `airflow/dags/` + `docker-compose.airflow.yml` |
-| UI / flag de interesse | `src/detran_ui/` (API) + `ui/` (Vite/React); lê `mart_dbt`, grava `mart.lotes_interesse` |
+| UI / flag de interesse | `src/detran_ui/` (API) + `ui/` (Vite/React); lê `mart_dbt` (`marca`/`modelo`/`ano_veiculo`), grava `mart.lotes_interesse` |
 | Exploração / watchlist | `notebooks/` (não duplicar lógica de produção sem necessidade) |
 
 ## Regras operacionais
 
 1. Preferir o menor diff que resolve o problema.
-2. Não inventar campos no card que o HTML não expõe (ex.: `tipo_veiculo`).
+2. Não inventar campos no card que o HTML não expõe (ex.: `tipo_veiculo`). Split de `marca_modelo` é T no dbt, não no parser.
 3. Validar parser contra HTML real ou fixture antes de “corrigir” no escuro.
 4. Após mudança de schema: `sql/001_init.sql` (installs novos) + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql` (sem DROP). Models e storage juntos.
 5. Não commitar `.env`, dumps HTML locais (`_diag/`), nem outputs grandes de notebook sem pedido.
@@ -50,7 +50,7 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 docker compose up -d
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lances
-cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
+cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
 pip install -e ".[ui]"
 python -m detran_ui
 cd ui && npm install && npm run dev

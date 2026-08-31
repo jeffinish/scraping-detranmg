@@ -30,14 +30,14 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
 3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` na subida; a UI aplica o `004`.
 4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
-5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Rodar `dbt run` após cada scrape antes de abrir a UI.
+5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Card/detalhe mostram `marca`, `modelo`, `ano_veiculo`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Rodar `dbt seed` + `dbt run` após cada scrape antes de abrir a UI.
 
 ## Transformação (dbt)
 
 1. **Scraper = EL.** `run.py` + `storage.py` gravam `raw.*` (e `mart.*` até cutover).
-2. **dbt = T.** Models em `transform/` materializam `mart_dbt.*` a partir de `raw.*`.
-3. **Cutover condicionado.** Rodar `scripts/reconcile_mart.py` antes de apontar notebooks para `mart_dbt`. A UI já lê `mart_dbt` por padrão (`MART_SCHEMA`).
-4. **Testes dbt** em `transform/models/*/_*.yml` (unique, not_null, relationships, freshness em `scrape_runs`).
+2. **dbt = T.** Models em `transform/` materializam `mart_dbt.*` a partir de `raw.*`. Identidade de lote (`marca` / `modelo` / `ano_veiculo`) vive no dbt (seed `marca_aliases`), não no parser.
+3. **Cutover condicionado.** Rodar `scripts/reconcile_mart.py` antes de apontar notebooks para `mart_dbt`. A UI já lê `mart_dbt` por padrão (`MART_SCHEMA`). `MART_SCHEMA=mart` não tem `marca` / `modelo` / `ano_veiculo`.
+4. **Testes dbt** em `transform/models/*/_*.yml`, `transform/seeds/_seeds.yml` e `transform/tests/` (unique, not_null, relationships, freshness, skip de prefixo `I/`, faixa de `ano_veiculo`).
 
 ## Orquestração local
 
@@ -48,7 +48,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Usar para exploração, análise e watchlist — não para substituir a CLI de carga.
 2. Watchlist (`04`): critérios em dicionário `INTERESSE`; “novo” ≈ `first_seen_at = last_seen_at` no último run.
-3. Heurísticas de marca/modelo/ano a partir de `marca_modelo` ficam na análise; o mart guarda a string bruta.
+3. Identidade (`marca`, `modelo`, `ano_veiculo`) é materializada no dbt a partir de `marca_modelo` + seed `marca_aliases`; o mart guarda a string bruta e as colunas derivadas.
 
 ## Qualidade e dívida conhecida
 
@@ -60,7 +60,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Cutover notebooks → mart_dbt |
 | Testes mínimos de parser (`tests/fixtures/`) | Deploy AWS |
 | dbt + Airflow local (`transform/`, `docs/ORCHESTRATION.md`) | Suite completa + cobertura |
-| UI Vite/React lendo `mart_dbt` (`ui/` + `python -m detran_ui`) | Download de imagens / galeria do detalhe |
+| Identidade `marca` / `modelo` / `ano_veiculo` (dbt + UI) | Tombstone; expor cor/`valor_inicial` na UI |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 

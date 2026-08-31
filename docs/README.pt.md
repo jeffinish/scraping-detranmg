@@ -2,9 +2,9 @@
 
 Scraper de **editais e lotes de leilão** do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.br/).
 
-Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de exploração, análise e watchlist, e UI Vite/React para marcar lotes.
+Pipeline local: scraping → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → notebooks e UI Vite/React.
 
-> Agentes de IA: comece por [`AGENTS.md`](../AGENTS.md). Referência técnica: [`REFERENCE.md`](REFERENCE.md). Práticas do projeto: [`PRACTICES.md`](PRACTICES.md).
+> Agentes de IA: comece por [`AGENTS.md`](../AGENTS.md). Referência técnica: [`REFERENCE.md`](REFERENCE.md). Práticas: [`PRACTICES.md`](PRACTICES.md). Orquestração: [`ORCHESTRATION.md`](ORCHESTRATION.md). Roadmap: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
 ## O que já foi feito
 
@@ -16,15 +16,18 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → notebooks de explora�
 | Postgres local (Docker, porta **5435**) com camadas raw/mart | Pronto |
 | Notebooks 01–03 (exploração + Altair no mart) | Pronto |
 | Notebook 04 (watchlist / alerta de lotes novos) | Pronto |
-| UI Vite/React (`ui/` + `python -m detran_ui`, extra `[ui]`) | Pronto |
+| UI Vite/React (`ui/` + `python -m detran_ui`, extra `[ui]`) | Pronto — card com marca/modelo/ano |
+| dbt `mart_dbt` + seed `marca_aliases` | Pronto |
+| Airflow local (DAG scrape → dbt seed+run → dbt test) | Pronto |
 | Revalidação dos seletores após filtros novos no portal (2026-07) | OK — parsers intactos |
 | Testes automatizados de parser (fixtures HTML offline) | Mínimo |
 | CI (GitHub Actions) | Pendente |
 | Histórico de lances + detalhe (zona logada, `--lances`) | Pronto |
 | Persistência de `tipo_veiculo` (só existe como filtro UI) | Pendente |
+| Cutover notebooks → `mart_dbt` / remover upsert Python | Pendente |
 | Deploy AWS | Pendente |
 
-**Última carga de referência** (`2026-08-09`): 87 editais · 8.605 lotes no run; mart pode acumular mais (upsert sem purge).
+**Última carga de referência** (`2026-08-31`, `48e777df-…`): 61 editais · 6.346 lotes no run; `mart_dbt.mart_lotes` = 11.772 (upsert sem purge).
 
 ## Estrutura
 
@@ -35,8 +38,10 @@ scraping-detranmg/
 ├── docs/
 │   ├── README.pt.md          # esta página
 │   ├── REFERENCE.md          # URLs, seletores, schema, pipeline
-│   └── PRACTICES.md          # convenções já adotadas
-├── sql/                      # 001_init.sql + 002_lotes_interesse.sql + 003_lotes_lances.sql
+│   ├── PRACTICES.md          # convenções já adotadas
+│   ├── ORCHESTRATION.md      # Airflow + dbt
+│   └── NEXT_STEPS.md         # roadmap
+├── sql/                      # 001_init + 002_airflow + 003_lances + 004_interesse
 ├── notebooks/
 │   ├── 01_exploracao_editais.ipynb
 │   ├── 02_exploracao_lotes.ipynb
@@ -50,6 +55,8 @@ scraping-detranmg/
 │   └── run.py
 ├── src/detran_ui/            # API FastAPI (`pip install -e ".[ui]"`)
 ├── ui/                       # cliente Vite + React
+├── transform/                # dbt: staging + mart_dbt + seeds/marca_aliases
+├── airflow/dags/             # DAG scrape → dbt
 ├── tests/
 │   └── test_parsers.py
 ├── docker-compose.yml
@@ -79,6 +86,10 @@ python -m detran_scraper.run
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lotes --max-editais 1
 python -m detran_scraper.run --lances
+
+# dbt (após scrape; porta 5435)
+pip install -e ".[dbt]"
+cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
 ```
 
 ```python
@@ -96,16 +107,17 @@ with DetranClient() as client:
 run.py --lotes
   ├─► raw.scrape_runs
   ├─► raw.editais / raw.lotes     # snapshot por run
-  ├─► mart.editais / mart.lotes   # estado atual (upsert)
+  ├─► mart.editais / mart.lotes   # estado atual (upsert Python, dual-run)
+  ├─► mart_dbt.* (dbt)            # mart analítico (UI); marca/modelo/ano_veiculo
   ├─► mart.editais_status_history
-  └─► mart.lotes_interesse        # flag da UI (sql/002)
+  └─► mart.lotes_interesse        # flag da UI (sql/004)
 ```
 
 ### Campos (listagem)
 
 **Edital:** `leilao_id`, `numero_edital`, `municipio`, `patio`, `status`, `data_encerramento`, `url_detalhes`.
 
-**Lote:** `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual`. Com `--lances`: `valor_inicial`, cor, anos, combustível, incremento, status e tabela `lotes_lances`.
+**Lote:** `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual`. dbt deriva `marca`, `modelo`, `ano_veiculo` (UI). Com `--lances`: `valor_inicial`, cor, anos do detalhe, combustível, incremento, status e tabela `lotes_lances`.
 
 O portal oferece filtros de **tipo / marca / modelo / ano / cor / condição**, mas o tipo **não** vem no HTML do card; ver [`REFERENCE.md`](REFERENCE.md).
 
@@ -118,7 +130,7 @@ O portal oferece filtros de **tipo / marca / modelo / ano / cor / condição**, 
 | `03` | KPIs e gráficos Altair no mart |
 | `04` | Watchlist: interesse + alerta de lotes novos |
 
-Pré-requisito para `03` e `04`: rodar `python -m detran_scraper.run --lotes` (ou `--max-editais 1 --lotes` para um teste rápido).
+Pré-requisito para `03` e `04`: rodar `python -m detran_scraper.run --lotes` (ou `--max-editais 1 --lotes` para um teste rápido). A UI exige `dbt seed` + `dbt run` depois do scrape.
 
 ```bash
 jupyter notebook notebooks/03_analise_mart.ipynb

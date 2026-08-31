@@ -24,6 +24,8 @@ export type Lote = {
   leilaoId: number;
   numeroLote: string;
   condicao: string;
+  marca: string;
+  modelo: string;
   marcaModelo: string;
   valorFmt: string;
   urlDetalhes: string;
@@ -87,6 +89,8 @@ export function parseLote(json: Record<string, unknown>): Lote {
     leilaoId: Number(json.leilao_id ?? 0),
     numeroLote: str(json.numero_lote),
     condicao: str(json.condicao, "—"),
+    marca: str(json.marca),
+    modelo: str(json.modelo),
     marcaModelo: str(json.marca_modelo),
     valorFmt: str(json.valor_fmt, "—"),
     urlDetalhes: str(json.url_detalhes),
@@ -98,6 +102,11 @@ export function parseLote(json: Record<string, unknown>): Lote {
     anoVeiculo: str(json.ano_veiculo, "—"),
     interesse: json.interesse === true,
   };
+}
+
+/** Título do card/detalhe: modelo parseado, senão a string bruta do portal. */
+export function tituloLote(lote: Lote): string {
+  return lote.modelo || lote.marcaModelo || "—";
 }
 
 export function parseLotePage(json: Record<string, unknown>): LotePage {

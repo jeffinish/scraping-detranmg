@@ -1,0 +1,13 @@
+token,action,marca_canonica
+I,skip,
+IMP,skip,
+Y,skip,
+H,skip,
+JTA,skip,
+GM,alias,CHEVROLET
+VW,alias,VOLKSWAGEN
+CHEV,alias,CHEVROLET
+M.BENZ,alias,MERCEDES-BENZ
+M.B.,alias,MERCEDES-BENZ
+MBENZ,alias,MERCEDES-BENZ
+MMC,alias,MITSUBISHI

@@ -50,7 +50,7 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 
 - Card: `div.card.listaLotes` com `id` = `lote_id`
 - Cabeçalho: spans em `div.card-body b` → `numero_lote`, `condicao`
-- `marca_modelo`: bold em `div.card-body div.row` / `div.col-12.text-center`
+- `marca_modelo`: bold em `div.card-body div.row` / `div.col-12.text-center` (string bruta; split é dbt, não parser)
 - Valor: `p#valor_atual_lote_{lote_id}` (`R$ 1.234,56`)
 - Foto (não persistida): `img.card-img-top` → `/Imagens/visualizar/leiloes/leilao_{leilao_id}/img_{lote_id}_1.jpg`. A UI deriva essa URL; o scraper não grava `url_imagem`.
 - Paginação: `ul.pagination a.page-link[href*='page=']` → `parse_lotes_max_page`
@@ -78,6 +78,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
   → persist_lotes   (raw append + mart upsert; COALESCE nos campos de enriquecimento)
   → persist_lances  (raw append + mart upsert; não apaga histórico)
   → raw.scrape_runs
+  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo)
 ```
 
 - **raw:** append-only por `run_id`
@@ -86,7 +87,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
 
 ## Schema (resumo)
 
-Definido em `sql/001_init.sql` (install novo), `sql/002_lotes_interesse.sql` (flag da UI) e `sql/003_lotes_lances.sql` (volume existente; só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
+Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (banco Airflow), `sql/003_lotes_lances.sql` e `sql/004_lotes_interesse.sql` (volumes existentes: só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
 
 | Tabela | Papel |
 |--------|-------|
@@ -96,7 +97,9 @@ Definido em `sql/001_init.sql` (install novo), `sql/002_lotes_interesse.sql` (fl
 | `mart.editais` / `mart.lotes` | Último estado + `first_seen_at` / `last_seen_at` |
 | `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
 | `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
-| `mart.lotes_interesse` | Flag manual da UI (`sql/002_lotes_interesse.sql`; a UI aplica na subida) |
+| `mart.lotes_interesse` | Flag manual da UI (`sql/004_lotes_interesse.sql`; a UI aplica na subida) |
+| `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo` derivados de `marca_modelo` + seed `marca_aliases` |
+| `staging.marca_aliases` | Seed dbt: prefixos skip (`I`, `IMP`, `Y`, `H`, `JTA`) e alias (`GM`→CHEVROLET, `VW`→VOLKSWAGEN, …) |
 
 ## Modelos Python
 
@@ -106,6 +109,20 @@ Campos de lote na listagem: `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `
 
 `--lances` preenche `valor_inicial`, `cor`, `ano_modelo`, `ano_fabricacao`, `combustivel`, `valor_incremento`, `status_lote` e grava `Lance`.
 
+## Identidade do lote (dbt)
+
+O card só expõe `marca_modelo`. O parser **não** split. `mart_dbt.mart_lotes` deriva:
+
+| Coluna | Regra |
+|--------|--------|
+| `marca` | Token antes de `/`, depois do seed (skip ou alias). Sem `/`: NULL |
+| `modelo` | Texto após a marca, sem o ano do sufixo |
+| `ano_veiculo` | Ano 19xx/20xx no **sufixo**; senão o primeiro na string. Usar grupo POSIX não-capturante — `(19|20)` sozinho faz o Postgres devolver `19`/`20` |
+
+Seed: [`transform/seeds/marca_aliases.csv`](../transform/seeds/marca_aliases.csv). Token ausente = split simples. Teto conhecido: `I/LR …` → marca `LR`; `R`/`REB` (reboques); `JTA-SUZUKI` (4 lotes, token distinto de `JTA`).
+
+`ano_modelo` / `ano_fabricacao` continuam sendo enriquecimento `--lances` (last-non-null), outra fonte.
+
 ## UI local
 
 ```bash
@@ -114,7 +131,7 @@ python -m detran_ui
 cd ui && npm install && npm run dev
 ```
 
-API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Filtros no SQL (marca/modelo/município/condição/status/valor/ano) + flag em `mart.lotes_interesse`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
 
 Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 
@@ -129,4 +146,4 @@ Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0
 
 ## Carga recente (referência)
 
-Run `2026-07-18` (`9ddfb93a-…`): **23** editais, **1.331** lotes, status `success`. Contagens em `mart.*` podem ser maiores (histórico acumulado sem purge).
+Run `2026-08-31` (`48e777df-…`): **61** editais, **6.346** lotes no scrape, status `success`. `mart_dbt.mart_lotes` = **11.772** (histórico acumulado sem purge).

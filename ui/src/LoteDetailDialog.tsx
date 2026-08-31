@@ -1,4 +1,4 @@
-import type { Lote } from "./types";
+import { tituloLote, type Lote } from "./types";
 import { imageUrl } from "./api";
 import "./LoteDetailDialog.css";
 
@@ -9,12 +9,13 @@ type Props = {
 
 export function LoteDetailDialog({ lote, onClose }: Props) {
   const linhas: [string, string][] = [
+    ["Marca", lote.marca || "—"],
+    ["Ano", lote.anoVeiculo],
     ["Valor", lote.valorFmt],
     ["Lote", lote.numeroLote],
     ["Edital", lote.numeroEdital],
     ["Município", lote.municipio],
     ["Pátio", lote.patio],
-    ["Ano", lote.anoVeiculo],
     ["Encerramento", lote.dataEncerramento],
   ];
 
@@ -31,7 +32,7 @@ export function LoteDetailDialog({ lote, onClose }: Props) {
           />
         </div>
         <div className="detail__body">
-          <h2 id="detail-title">{lote.marcaModelo}</h2>
+          <h2 id="detail-title">{tituloLote(lote)}</h2>
           <div className="chips">
             <span className="chip">{lote.condicao}</span>
             <span className="chip">{lote.statusEdital}</span>

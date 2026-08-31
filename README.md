@@ -2,15 +2,15 @@
 
 Local data pipeline that scrapes **auction notices and vehicle lots** from the [DETRAN/MG public auction portal](https://leilao.detran.mg.gov.br/): HTTP scraping → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → Jupyter analytics, watchlist alerts, and a local Vite/React UI.
 
-> Portuguese docs: [`docs/README.pt.md`](docs/README.pt.md) · Technical reference: [`docs/REFERENCE.md`](docs/REFERENCE.md)
+> Portuguese docs: [`docs/README.pt.md`](docs/README.pt.md) · Technical reference: [`docs/REFERENCE.md`](docs/REFERENCE.md) · Next steps: [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md)
 
 ## Highlights
 
 - Layered Python package (~700 LOC): HTTP client → HTML parsers → immutable domain models → Postgres persistence
 - **Raw / mart** pattern with run tracking, status history, and `first_seen_at` / `last_seen_at` for change detection
-- **dbt** rebuilds `mart_dbt` from `raw` with tests and docs (parallel to Python mart until cutover)
-- **Airflow** local DAG: daily scrape → dbt run → dbt test
-- **Vite/React UI** reads `mart_dbt` via FastAPI; interest flags in `mart.lotes_interesse`
+- **dbt** rebuilds `mart_dbt` from `raw` with tests and docs (parallel to Python mart until cutover); lot identity (`marca` / `modelo` / `ano_veiculo`) from `marca_modelo` + seed `marca_aliases`
+- **Airflow** local DAG: daily scrape → dbt seed+run → dbt test
+- **Vite/React UI** reads `mart_dbt` via FastAPI (parsed brand/model/year on cards); interest flags in `mart.lotes_interesse`
 - Resilient HTTP: browser-like headers, session cookies, exponential retry on transient errors
 - Offline parser tests with HTML fixtures (no network in CI-ready tests)
 
@@ -35,7 +35,7 @@ jupyter notebook notebooks/03_analise_mart.ipynb
 
 # dbt (after scrape; Postgres on :5435)
 pip install -e ".[dbt]"
-cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
+cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
 python scripts/reconcile_mart.py
 
 # Browse lots + star watchlist (reads mart_dbt — run dbt first)
@@ -89,7 +89,7 @@ run.py --lotes
   └─► mart.lotes_interesse         # UI star flag (sql/004)
 ```
 
-**Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). `--lances` fills `valor_inicial`, color, years, fuel, increment, status, and `lotes_lances`.
+**Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). dbt adds `marca`, `modelo`, `ano_veiculo` on `mart_dbt.mart_lotes` (UI). `--lances` fills `valor_inicial`, color, `ano_modelo` / `ano_fabricacao`, fuel, increment, status, and `lotes_lances`.
 
 ## CLI
 
@@ -115,13 +115,14 @@ Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in the GU
 
 | Done | Planned |
 |------|---------|
-| End-to-end CLI pipeline | Detail-page scrape |
+| End-to-end CLI pipeline | Detail-page scrape / image gallery |
 | Raw/mart Postgres layers | CI (GitHub Actions) |
 | Parser unit tests (fixtures) | `tipo_veiculo` enrichment |
 | Watchlist notebook | AWS deploy |
 | dbt `mart_dbt` + reconcile script | Cutover notebooks → mart_dbt |
-| Airflow local DAG | Curadoria analítica pós-cutover |
-| Local Vite/React lot browser (reads `mart_dbt`) | Image download / detail gallery |
+| Airflow local DAG | Tombstone of lots missing from last run |
+| Local Vite/React lot browser (reads `mart_dbt`) | Expose `--lances` fields (`cor`, `valor_inicial`) in UI |
+| Split `marca_modelo` → `marca` / `modelo` / `ano_veiculo` (dbt + UI) | |
 
 ## Limitations
 
@@ -136,7 +137,7 @@ scraping-detranmg/
 ├── src/detran_scraper/     # production scraper (EL)
 ├── src/detran_ui/          # FastAPI (optional extra [ui])
 ├── ui/                     # Vite + React client
-├── transform/              # dbt: staging + mart_dbt
+├── transform/              # dbt: staging + mart_dbt + seeds/marca_aliases
 ├── airflow/dags/           # Airflow DAGs
 ├── scripts/                # reconcile_mart.py
 ├── tests/fixtures/         # offline HTML for parser tests

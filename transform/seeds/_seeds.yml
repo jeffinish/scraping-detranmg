@@ -1,0 +1,18 @@
+version: 2
+
+seeds:
+  - name: marca_aliases
+    description: >
+      Prefixos de marca_modelo que não são marca (skip) ou que têm nome
+      canônico (alias). Token ausente = SPLIT_PART no primeiro '/'.
+      Extraído do DISTINCT do mart; sem catálogo FIPE.
+    columns:
+      - name: token
+        tests:
+          - unique
+          - not_null
+      - name: action
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["skip", "alias"]

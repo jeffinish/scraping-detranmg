@@ -22,12 +22,13 @@ SCHEMA_SQL = REPO_ROOT / "sql" / "004_lotes_interesse.sql"
 # ponytail: listing thumbnail is always img_{lote_id}_1.jpg.
 _IMAGEM_PATH = "/Imagens/visualizar/leiloes/leilao_{leilao_id}/img_{lote_id}_1.jpg"
 
-_ANO_SQL = "(SUBSTRING(l.marca_modelo FROM '(19|20)[0-9]{2}'))::integer"
-_MARCA_SQL = "UPPER(TRIM(SPLIT_PART(l.marca_modelo, '/', 1)))"
-
 
 def mart_schema() -> str:
-    """Schema analítico lido pela UI (default: mart_dbt)."""
+    """Schema analítico lido pela UI (default: mart_dbt).
+
+    Filtros de marca/modelo/ano_veiculo exigem colunas do dbt.
+    MART_SCHEMA=mart (hatch do dual-run Python) não tem essas colunas.
+    """
     schema = os.getenv("MART_SCHEMA", "mart_dbt")
     if schema not in {"mart_dbt", "mart"}:
         raise ValueError(f"MART_SCHEMA inválido: {schema!r}")
@@ -96,9 +97,9 @@ def list_opcoes(engine: Engine) -> dict[str, list[str]]:
     with engine.connect() as conn:
         marcas = conn.execute(
             text(f"""
-                SELECT DISTINCT {_MARCA_SQL} AS marca
+                SELECT DISTINCT l.marca
                 FROM {lotes} l
-                WHERE l.marca_modelo IS NOT NULL AND TRIM(l.marca_modelo) <> ''
+                WHERE l.marca IS NOT NULL
                 ORDER BY 1
             """)
         ).scalars().all()
@@ -199,8 +200,9 @@ def list_lotes(
             e.patio,
             e.status AS status_edital,
             e.data_encerramento,
-            {_MARCA_SQL} AS marca,
-            {_ANO_SQL} AS ano_veiculo,
+            l.marca,
+            l.modelo,
+            l.ano_veiculo,
             (i.lote_id IS NOT NULL) AS interesse,
             COUNT(*) OVER() AS total_count
         FROM {lotes} l
@@ -243,12 +245,12 @@ def _where(filtros: LoteFiltros) -> tuple[str, dict]:
 
     marcas = [m.strip().upper() for m in filtros.marcas if m and str(m).strip()]
     if marcas:
-        clauses.append(_in_clause(_MARCA_SQL, marcas, "marca", params))
+        clauses.append(_in_clause("l.marca", marcas, "marca", params))
 
     modelo = filtros.modelo_contem.strip()
     if modelo:
         params["modelo"] = f"%{modelo}%"
-        clauses.append("l.marca_modelo ILIKE :modelo")
+        clauses.append("l.modelo ILIKE :modelo")
 
     municipios = [m.strip() for m in filtros.municipios if m and str(m).strip()]
     if municipios:
@@ -274,11 +276,11 @@ def _where(filtros: LoteFiltros) -> tuple[str, dict]:
 
     if filtros.ano_min is not None:
         params["ano_min"] = int(filtros.ano_min)
-        clauses.append(f"{_ANO_SQL} >= :ano_min")
+        clauses.append("l.ano_veiculo >= :ano_min")
 
     if filtros.ano_max is not None:
         params["ano_max"] = int(filtros.ano_max)
-        clauses.append(f"{_ANO_SQL} <= :ano_max")
+        clauses.append("l.ano_veiculo <= :ano_max")
 
     if filtros.somente_interesse:
         clauses.append("i.lote_id IS NOT NULL")

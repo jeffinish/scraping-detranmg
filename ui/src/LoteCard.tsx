@@ -1,4 +1,4 @@
-import type { Lote } from "./types";
+import { tituloLote, type Lote } from "./types";
 import { imageUrl } from "./api";
 import "./LoteCard.css";
 
@@ -24,7 +24,7 @@ export function LoteCard({ lote, onOpen, onToggle }: Props) {
       </button>
       <div className="card__body">
         <div className="card__title-row">
-          <h3 className="card__title">{lote.marcaModelo}</h3>
+          <h3 className="card__title">{tituloLote(lote)}</h3>
           <button
             type="button"
             className="icon-btn"
@@ -37,6 +37,8 @@ export function LoteCard({ lote, onOpen, onToggle }: Props) {
           </button>
         </div>
         <div className="chips">
+          {lote.marca ? <span className="chip">{lote.marca}</span> : null}
+          {lote.anoVeiculo !== "—" ? <span className="chip">{lote.anoVeiculo}</span> : null}
           <span className="chip">{lote.condicao}</span>
           <span className="chip">{lote.statusEdital}</span>
         </div>

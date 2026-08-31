@@ -8,6 +8,7 @@ model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
+seed-paths: ["seeds"]
 
 models:
   detran_transform:
@@ -17,6 +18,10 @@ models:
     mart:
       +materialized: table
       +schema: mart_dbt
+
+seeds:
+  detran_transform:
+    +schema: staging
 
 vars:
   # Aceitos no portal (parse_editais)

@@ -31,6 +31,7 @@ models:
     description: >
       Estado atual de cada lote. Listagem do último snapshot;
       campos de enriquecimento com last-non-null (equivalente ao COALESCE do storage.py).
+      marca / modelo / ano_veiculo são derivados de marca_modelo + seed marca_aliases.
     columns:
       - name: lote_id
         tests:
@@ -45,6 +46,22 @@ models:
                 field: leilao_id
       - name: condicao
         description: CONSERVADO, SUCATA ou INSERVÍVEL (portal).
+      - name: marca_modelo
+        description: String bruta do card. Fonte de marca, modelo e ano_veiculo.
+      - name: marca
+        description: >
+          Marca canônica (seed skip/alias ou token antes da barra).
+          NULL se a string não tem barra ou está vazia.
+      - name: modelo
+        description: Texto após a marca, sem o ano do sufixo. NULL se vazio após o parse.
+      - name: ano_veiculo
+        description: >
+          Ano 19xx/20xx no sufixo do card; se não houver, o primeiro na string.
+          Distinto de ano_modelo / ano_fabricacao (detalhe --lances).
+      - name: ano_modelo
+        description: Ano do modelo no detalhe HTML (--lances). Last-non-null; muitas vezes NULL.
+      - name: ano_fabricacao
+        description: Ano de fabricação no detalhe HTML (--lances). Last-non-null; muitas vezes NULL.
 
   - name: mart_editais_status_history
     description: Transições de status reconstruídas a partir de raw.editais.

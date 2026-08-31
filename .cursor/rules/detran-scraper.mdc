@@ -11,4 +11,4 @@ Antes de editar: leia `AGENTS.md`.
 - Convenções do código: `docs/PRACTICES.md`
 - Visão geral humana: `README.md`
 
-Parser HTML só em `src/detran_scraper/parsers.py`. Não inventar campos ausentes no HTML do card (ex.: `tipo_veiculo`).
+Parser HTML só em `src/detran_scraper/parsers.py`. Não inventar campos ausentes no HTML do card (ex.: `tipo_veiculo`). Identidade (`marca` / `modelo` / `ano_veiculo`) é dbt (`transform/seeds`, `mart_lotes.sql`).

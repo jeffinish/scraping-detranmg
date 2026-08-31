@@ -1,4 +1,4 @@
-"""DAG diário: scrape → dbt run → dbt test."""
+"""DAG diário: scrape → dbt seed+run → dbt test."""
 
 from __future__ import annotations
 
@@ -48,7 +48,10 @@ with DAG(
 
     dbt_run = BashOperator(
         task_id="dbt_run",
-        bash_command=f"cd /opt/project/transform && {DBT_BIN} run --profiles-dir .",
+        bash_command=(
+            f"cd /opt/project/transform && {DBT_BIN} seed --profiles-dir . "
+            f"&& {DBT_BIN} run --profiles-dir ."
+        ),
         env=DBT_ENV,
     )
 

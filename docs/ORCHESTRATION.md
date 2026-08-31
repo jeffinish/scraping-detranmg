@@ -9,7 +9,7 @@ Contrato para replicar este padrão em outros projetos de scraping/EL.
 | `python -m detran_scraper.run` | **EL** — grava `raw.*` e `mart.*` (Python, até cutover) |
 | `transform/` (dbt) | **T** — reconstrói `mart_dbt.*` a partir de `raw.*` |
 | `src/detran_ui/` + `ui/` | **Consumo** — lê `mart_dbt`; grava `mart.lotes_interesse` |
-| Airflow (`docker-compose.airflow.yml`) | Scheduler: scrape → `dbt run` → `dbt test` |
+| Airflow (`docker-compose.airflow.yml`) | Scheduler: scrape → dbt seed+run → dbt test |
 | `scripts/reconcile_mart.py` | Gate de cutover: compara `mart` vs `mart_dbt` |
 
 AWS (EventBridge, ECS, MWAA) fica para o capítulo seguinte, quando o DAG local já rodar todo dia sem depender do PC.
@@ -28,7 +28,7 @@ python -m detran_scraper.run --lotes
 
 # 3. dbt (host — porta 5435)
 pip install -r transform/requirements.txt
-cd transform && dbt run --profiles-dir . && dbt test --profiles-dir .
+cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
 
 # 4. Reconciliação
 python scripts/reconcile_mart.py
@@ -60,7 +60,7 @@ docker exec detran_airflow airflow dags trigger detran_scrape_dbt
 `airflow/dags/detran_pipeline.py` — `detran_scrape_dbt`:
 
 1. `scrape_lotes` — `python -m detran_scraper.run --lotes`
-2. `dbt_run`
+2. `dbt_run` — `dbt seed` + `dbt run` (seed `marca_aliases` precisa existir antes do mart)
 3. `dbt_test`
 
 Schedule: `0 6 * * *` (06:00 UTC). Ajuste no DAG se quiser horário BR.
@@ -83,4 +83,4 @@ Não duplicar lógica de transformação no Python depois do cutover — o mart 
 1. ~~Apontar UI para `mart_dbt`~~ (feito — `MART_SCHEMA=mart_dbt`)
 2. Apontar notebooks `03` e `04` para `mart_dbt.*`
 3. Remover upsert de mart em `storage.py` (rodada seguinte)
-4. Curadoria extra (split `marca_modelo`, tombstone, etc.) com testes regressando o mart
+4. Curadoria extra (tombstone, `cor`/`valor_inicial` na UI) com testes regressando o mart

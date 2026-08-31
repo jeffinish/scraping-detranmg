@@ -26,7 +26,18 @@ def test_where_marca_e_valor():
     assert params["marca_0"] == "FIAT"
     assert params["valor_min"] == 500
     assert params["valor_max"] == 10_000
+    assert "l.marca" in sql
     assert "valor_atual >=" in sql
+
+
+def test_where_modelo_e_ano():
+    sql, params = _where(LoteFiltros(modelo_contem="gol", ano_min=2010, ano_max=2020))
+    assert params["modelo"] == "%gol%"
+    assert params["ano_min"] == 2010
+    assert params["ano_max"] == 2020
+    assert "l.modelo ILIKE" in sql
+    assert "l.ano_veiculo >=" in sql
+    assert "l.ano_veiculo <=" in sql
 
 
 def test_format_brl():
