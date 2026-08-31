@@ -52,6 +52,7 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 - Cabeçalho: spans em `div.card-body b` → `numero_lote`, `condicao`
 - `marca_modelo`: bold em `div.card-body div.row` / `div.col-12.text-center`
 - Valor: `p#valor_atual_lote_{lote_id}` (`R$ 1.234,56`)
+- Foto (não persistida): `img.card-img-top` → `/Imagens/visualizar/leiloes/leilao_{leilao_id}/img_{lote_id}_1.jpg`. A UI deriva essa URL; o scraper não grava `url_imagem`.
 - Paginação: `ul.pagination a.page-link[href*='page=']` → `parse_lotes_max_page`
 - Densidade típica: ~8 lotes/página
 
@@ -85,7 +86,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
 
 ## Schema (resumo)
 
-Definido em `sql/001_init.sql` (install novo) e `sql/003_lotes_lances.sql` (volume existente; só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
+Definido em `sql/001_init.sql` (install novo), `sql/002_lotes_interesse.sql` (flag da UI) e `sql/003_lotes_lances.sql` (volume existente; só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
 
 | Tabela | Papel |
 |--------|-------|
@@ -95,6 +96,7 @@ Definido em `sql/001_init.sql` (install novo) e `sql/003_lotes_lances.sql` (volu
 | `mart.editais` / `mart.lotes` | Último estado + `first_seen_at` / `last_seen_at` |
 | `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
 | `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
+| `mart.lotes_interesse` | Flag manual da UI (`sql/002_lotes_interesse.sql`; a UI aplica na subida) |
 
 ## Modelos Python
 
@@ -103,6 +105,18 @@ Definido em `sql/001_init.sql` (install novo) e `sql/003_lotes_lances.sql` (volu
 Campos de lote na listagem: `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual`, `valor_inicial=None`, `url_detalhes`, `raw_hash`.
 
 `--lances` preenche `valor_inicial`, `cor`, `ano_modelo`, `ano_fabricacao`, `combustivel`, `valor_incremento`, `status_lote` e grava `Lance`.
+
+## UI local
+
+```bash
+pip install -e ".[ui]"
+python -m detran_ui
+cd ui && npm install && npm run dev
+```
+
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Filtros no SQL (marca/modelo/município/condição/status/valor/ano) + flag em `mart.lotes_interesse`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+
+Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 
 ## Notebooks
 

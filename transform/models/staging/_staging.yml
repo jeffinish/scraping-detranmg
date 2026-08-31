@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: stg_raw_scrape_runs
+    description: Metadados de execução do scraper (1:1 com raw.scrape_runs).
+  - name: stg_raw_editais
+    description: Snapshots append-only de editais por run.
+  - name: stg_raw_lotes
+    description: Snapshots append-only de lotes por run.
+  - name: stg_raw_lotes_lances
+    description: Snapshots append-only de lances por run.

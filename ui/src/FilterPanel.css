@@ -1,0 +1,31 @@
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.filters__title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  font-weight: 500;
+}
+
+.filters__label {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  font-weight: 500;
+}
+
+.filters__row {
+  display: flex;
+  gap: 8px;
+}
+
+.multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

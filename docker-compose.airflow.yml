@@ -1,0 +1,30 @@
+# Profile Airflow: use junto com docker-compose.yml
+#   docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
+#
+# UI: http://localhost:8090 (credenciais geradas no primeiro `standalone` — ver logs do container)
+
+services:
+  airflow:
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: detran_airflow
+    command: standalone
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://scraper:scraper@postgres:5432/airflow
+      DATABASE_URL: postgresql://scraper:scraper@postgres:5432/detran_leiloes
+      DBT_HOST: postgres
+      DBT_PORT: "5432"
+      DBT_USER: scraper
+      DBT_PASSWORD: scraper
+      DBT_DATABASE: detran_leiloes
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    ports:
+      - "8090:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped

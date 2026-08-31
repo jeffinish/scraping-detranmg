@@ -22,6 +22,13 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4",
 ]
+dbt = [
+    "dbt-postgres>=1.8,<2",
+]
+ui = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
 
 [build-system]
 requires = ["setuptools>=61"]

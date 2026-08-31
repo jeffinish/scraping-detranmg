@@ -183,11 +183,24 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Ruff stuff:
-.ruff_cache/
+# Node / Vite
+node_modules/
+
 
 # PyPI configuration file
 .pypirc
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+
+# Airflow local
+airflow/logs/
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/webserver_config.py
+airflow/standalone_admin_password.txt
 
 # Cursor  
 #  Cursor is an AI-powered code editor.`.cursorignore` specifies files/directories to 
