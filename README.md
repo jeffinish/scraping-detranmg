@@ -44,7 +44,7 @@ python -m detran_ui
 cd ui && npm install && npm run dev
 # After `npm run build`, python -m detran_ui serves API + UI at :8080
 
-# Airflow scheduler (optional)
+# Airflow scheduler (optional — UI at :8090, UI app stays on :8080)
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 ```
 

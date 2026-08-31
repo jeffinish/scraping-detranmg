@@ -1,7 +1,7 @@
 # Profile Airflow: use junto com docker-compose.yml
 #   docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 #
-# UI: http://localhost:8080 (credenciais geradas no primeiro `standalone` — ver logs do container)
+# UI: http://localhost:8090 (credenciais geradas no primeiro `standalone` — ver logs do container)
 
 services:
   airflow:
@@ -23,7 +23,7 @@ services:
     volumes:
       - ./airflow/dags:/opt/airflow/dags
     ports:
-      - "8080:8080"
+      - "8090:8080"
     depends_on:
       postgres:
         condition: service_healthy

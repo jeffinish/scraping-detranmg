@@ -70,5 +70,5 @@ python -m detran_ui
 # Airflow
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 docker exec detran_airflow airflow dags trigger detran_scrape_dbt
-# UI Airflow: http://localhost:8080
+# UI Airflow: http://localhost:8090
 ```

@@ -43,7 +43,7 @@ python -m detran_ui
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml build airflow
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
 docker exec detran_airflow airflow dags trigger detran_scrape_dbt
-# UI Airflow: http://localhost:8080 (credenciais no 1º boot — ver logs do container)
+# UI Airflow: http://localhost:8090 (credenciais no 1º boot — ver logs do container)
 ```
 
 ## Variáveis de ambiente
