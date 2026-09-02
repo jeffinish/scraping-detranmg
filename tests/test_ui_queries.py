@@ -15,10 +15,32 @@ def test_url_imagem_derivada_do_padrao_da_listagem():
     assert url.endswith("/Imagens/visualizar/leiloes/leilao_3416/img_312935_1.jpg")
 
 
-def test_where_somente_interesse():
+def test_where_somente_interesse(monkeypatch):
+    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
     sql, params = _where(LoteFiltros(somente_interesse=True))
     assert "i.lote_id IS NOT NULL" in sql
+    assert "l.ativo" in sql
     assert params == {}
+
+
+def test_where_esconde_inativos_por_padrao(monkeypatch):
+    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
+    sql, _params = _where(LoteFiltros())
+    assert "l.ativo" in sql
+
+
+def test_where_mostrar_inativos(monkeypatch):
+    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
+    sql, _params = _where(LoteFiltros(mostrar_inativos=True))
+    assert "l.ativo" not in sql
+
+
+def test_where_mart_python_nao_filtra_ativo(monkeypatch):
+    monkeypatch.setenv("MART_SCHEMA", "mart")
+    from detran_ui import queries
+
+    sql, _params = queries._where(queries.LoteFiltros())
+    assert "l.ativo" not in sql
 
 
 def test_where_marca_e_valor():

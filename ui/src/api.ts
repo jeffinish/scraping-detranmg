@@ -45,6 +45,7 @@ export async function fetchLotes(
     page: String(page),
     page_size: String(pageSize),
     somente_interesse: String(filtros.somenteInteresse),
+    mostrar_inativos: String(filtros.mostrarInativos),
   });
   const modelo = filtros.modeloContem.trim();
   if (modelo) params.set("modelo_contem", modelo);

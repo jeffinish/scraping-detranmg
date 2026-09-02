@@ -92,6 +92,7 @@ def lote_payload(item: dict) -> dict:
     out = {key: _jsonable(value) for key, value in item.items()}
     out["url_imagem"] = f"/imagens/{item['lote_id']}"
     out["interesse"] = bool(item.get("interesse"))
+    out["ativo"] = bool(item.get("ativo", True))
     return out
 
 
@@ -106,6 +107,7 @@ def filtros_from_query(
     ano_min: int | None,
     ano_max: int | None,
     somente_interesse: bool,
+    mostrar_inativos: bool,
 ) -> LoteFiltros:
     return LoteFiltros(
         marcas=marcas,
@@ -118,6 +120,7 @@ def filtros_from_query(
         ano_min=ano_min,
         ano_max=ano_max,
         somente_interesse=somente_interesse,
+        mostrar_inativos=mostrar_inativos,
     )
 
 
@@ -175,6 +178,7 @@ def api_lotes(
     ano_min: int | None = None,
     ano_max: int | None = None,
     somente_interesse: bool = False,
+    mostrar_inativos: bool = False,
     page: int = 1,
     page_size: int = PAGE_SIZE,
 ) -> dict:
@@ -189,6 +193,7 @@ def api_lotes(
         ano_min=ano_min,
         ano_max=ano_max,
         somente_interesse=somente_interesse,
+        mostrar_inativos=mostrar_inativos,
     )
     try:
         lotes, total = list_lotes(_db(), filtros, page=page, page_size=page_size)

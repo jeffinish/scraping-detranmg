@@ -244,7 +244,12 @@ def main(argv: list[str] | None = None) -> int:
         status_changes = persist_editais(engine, editais, run_id)
         lotes_saved = persist_lotes(engine, lotes, run_id) if lotes else 0
         lances_saved = persist_lances(engine, lances, run_id) if lances else 0
-        finish_scrape_run(engine, run_id, editais_count=len(editais))
+        finish_scrape_run(
+            engine,
+            run_id,
+            editais_count=len(editais),
+            max_editais=args.max_editais,
+        )
 
         logger.info(
             "Concluído: %d editais, %d mudanças de status, %d lotes, %d lances novos",
@@ -260,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
             engine,
             run_id,
             editais_count=0,
+            max_editais=args.max_editais,
             status="failed",
             error_message=str(exc),
         )

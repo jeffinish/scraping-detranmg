@@ -66,6 +66,14 @@ export function FilterPanel({ filtros, opcoes, onChange, onApply, onClear }: Pro
         selected={filtros.statusEdital}
         onChange={(statusEdital) => onChange({ ...filtros, statusEdital })}
       />
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={filtros.mostrarInativos}
+          onChange={(e) => onChange({ ...filtros, mostrarInativos: e.target.checked })}
+        />
+        Mostrar inativos
+      </label>
       <div className="filters__row">
         <label className="field">
           <span>Valor mín.</span>

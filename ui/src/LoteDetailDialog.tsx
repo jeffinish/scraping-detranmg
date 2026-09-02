@@ -36,6 +36,7 @@ export function LoteDetailDialog({ lote, onClose }: Props) {
           <div className="chips">
             <span className="chip">{lote.condicao}</span>
             <span className="chip">{lote.statusEdital}</span>
+            {!lote.ativo ? <span className="chip">Inativo</span> : null}
           </div>
           {linhas.map(([label, value]) => (
             <div key={label} className="detail__row">

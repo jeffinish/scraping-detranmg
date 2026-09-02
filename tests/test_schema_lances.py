@@ -6,6 +6,7 @@ from detran_scraper.storage import UPDATE_MART_LOTE, _sql_statements
 
 ROOT = Path(__file__).resolve().parents[1]
 SQL_003 = ROOT / "sql" / "003_lotes_lances.sql"
+SQL_005 = ROOT / "sql" / "005_scrape_runs_max_editais.sql"
 
 FORBIDDEN_PREFIXES = (
     "drop ",
@@ -42,3 +43,14 @@ def test_mart_lote_update_does_not_blank_enrichment():
         "status_lote",
     ):
         assert f"coalesce(:{col}, {col})" in sql
+
+
+def test_005_is_additive_only():
+    sql = SQL_005.read_text(encoding="utf-8")
+    for stmt in _sql_statements(sql):
+        lowered = stmt.lower().lstrip()
+        for needle in FORBIDDEN_PREFIXES:
+            assert not lowered.startswith(needle), f"forbidden statement: {stmt}"
+            assert f" {needle}" not in f" {lowered}"
+    assert "add column if not exists" in sql.lower()
+    assert "max_editais" in sql.lower()

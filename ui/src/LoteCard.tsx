@@ -41,6 +41,7 @@ export function LoteCard({ lote, onOpen, onToggle }: Props) {
           {lote.anoVeiculo !== "—" ? <span className="chip">{lote.anoVeiculo}</span> : null}
           <span className="chip">{lote.condicao}</span>
           <span className="chip">{lote.statusEdital}</span>
+          {!lote.ativo ? <span className="chip">Inativo</span> : null}
         </div>
         <p className="card__price">{lote.valorFmt}</p>
         <p className="card__meta">

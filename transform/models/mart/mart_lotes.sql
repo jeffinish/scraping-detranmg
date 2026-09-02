@@ -37,6 +37,28 @@ bounds AS (
     GROUP BY lote_id
 ),
 
+-- Último scrape completo: success, sem --max-editais, com lotes gravados.
+-- ponytail: um miss de paginação nesse run marca o lote inativo (upgrade: 2 runs).
+latest_full_run AS (
+    SELECT s.run_id
+    FROM {{ ref('stg_raw_scrape_runs') }} AS s
+    WHERE s.status = 'success'
+        AND s.max_editais IS NULL
+        AND EXISTS (
+            SELECT 1
+            FROM {{ ref('stg_raw_lotes') }} AS l
+            WHERE l.run_id = s.run_id
+        )
+    ORDER BY s.finished_at DESC NULLS LAST, s.started_at DESC
+    LIMIT 1
+),
+
+presentes AS (
+    SELECT DISTINCT l.lote_id
+    FROM {{ ref('stg_raw_lotes') }} AS l
+    INNER JOIN latest_full_run AS r ON l.run_id = r.run_id
+),
+
 parsed AS (
     SELECT
         ll.*,
@@ -118,9 +140,11 @@ SELECT
     e.ano_fabricacao,
     e.combustivel,
     e.valor_incremento,
-    e.status_lote
+    e.status_lote,
+    (p.lote_id IS NOT NULL) AS ativo
 FROM identidade AS i
 INNER JOIN bounds AS b ON i.lote_id = b.lote_id
 LEFT JOIN enrichment AS e ON i.lote_id = e.lote_id
+LEFT JOIN presentes AS p ON i.lote_id = p.lote_id
 LEFT JOIN {{ ref('marca_aliases') }} AS a2
     ON a2.token = i.marca_raw AND a2.action = 'alias'

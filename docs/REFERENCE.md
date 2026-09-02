@@ -70,7 +70,7 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 
 ```
 python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
-  → apply sql/003 (aditivo)
+  → apply sql/003 e sql/005 (aditivos)
   → fetch_home → parse_editais
   → [opcional] fetch_lotes_pages por edital → parse_lotes_from_pages
   → [--lances] Em Andamento: updateCountdown + updateSingleCountdown + HTML detalhe
@@ -78,7 +78,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
   → persist_lotes   (raw append + mart upsert; COALESCE nos campos de enriquecimento)
   → persist_lances  (raw append + mart upsert; não apaga histórico)
   → raw.scrape_runs
-  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo)
+  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; ativo)
 ```
 
 - **raw:** append-only por `run_id`
@@ -87,18 +87,18 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
 
 ## Schema (resumo)
 
-Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (banco Airflow), `sql/003_lotes_lances.sql` e `sql/004_lotes_interesse.sql` (volumes existentes: só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
+Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (banco Airflow), `sql/003_lotes_lances.sql`, `sql/004_lotes_interesse.sql` e `sql/005_scrape_runs_max_editais.sql` (volumes existentes: só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
 
 | Tabela | Papel |
 |--------|-------|
-| `raw.scrape_runs` | Metadado do run (`editais_count`, status) |
+| `raw.scrape_runs` | Metadado do run (`editais_count`, `max_editais`, status) |
 | `raw.editais` / `raw.lotes` | Snapshot por run |
 | `raw.lotes_lances` | Snapshot de lances por run |
 | `mart.editais` / `mart.lotes` | Último estado + `first_seen_at` / `last_seen_at` |
 | `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
 | `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
 | `mart.lotes_interesse` | Flag manual da UI (`sql/004_lotes_interesse.sql`; a UI aplica na subida) |
-| `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo` derivados de `marca_modelo` + seed `marca_aliases` |
+| `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo` e `ativo` (presente no último scrape completo de lotes) |
 | `staging.marca_aliases` | Seed dbt: prefixos skip (`I`, `IMP`, `Y`, `H`, `JTA`) e alias (`GM`→CHEVROLET, `VW`→VOLKSWAGEN, …) |
 
 ## Modelos Python
@@ -131,7 +131,7 @@ python -m detran_ui
 cd ui && npm install && npm run dev
 ```
 
-API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Default esconde `ativo = false` (query `mostrar_inativos`). Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas nem `ativo`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
 
 Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 
