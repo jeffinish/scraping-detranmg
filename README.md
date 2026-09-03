@@ -89,7 +89,7 @@ run.py --lotes
   └─► mart.lotes_interesse         # UI star flag (sql/004)
 ```
 
-**Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). dbt adds `marca`, `modelo`, `ano_veiculo` on `mart_dbt.mart_lotes` (UI). `--lances` fills `valor_inicial`, color, `ano_modelo` / `ano_fabricacao`, fuel, increment, status, and `lotes_lances`.
+**Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). dbt adds `marca`, `modelo`, `ano_veiculo`, and `ativo` on `mart_dbt.mart_lotes` (UI). `--lances` fills `valor_inicial`, color, `ano_modelo` / `ano_fabricacao`, fuel, increment, status, and `lotes_lances`.
 
 ## CLI
 

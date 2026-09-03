@@ -155,7 +155,9 @@ UPDATE_MART_LANCE = text("""
     WHERE id = :id
 """)
 
-SCHEMA_LANCES_SQL = Path(__file__).resolve().parents[2] / "sql" / "003_lotes_lances.sql"
+_SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
+SCHEMA_LANCES_SQL = _SQL_DIR / "003_lotes_lances.sql"
+SCHEMA_RUNS_SQL = _SQL_DIR / "005_scrape_runs_max_editais.sql"
 
 
 def create_db_engine(database_url: str) -> Engine:
@@ -182,6 +184,7 @@ def finish_scrape_run(
     run_id: uuid.UUID,
     *,
     editais_count: int,
+    max_editais: int | None = None,
     status: str = "success",
     error_message: str | None = None,
 ) -> None:
@@ -192,6 +195,7 @@ def finish_scrape_run(
                 UPDATE raw.scrape_runs
                 SET finished_at = NOW(),
                     editais_count = :editais_count,
+                    max_editais = :max_editais,
                     status = :status,
                     error_message = :error_message
                 WHERE run_id = :run_id
@@ -199,6 +203,7 @@ def finish_scrape_run(
             {
                 "run_id": run_id,
                 "editais_count": editais_count,
+                "max_editais": max_editais,
                 "status": status,
                 "error_message": error_message,
             },
@@ -292,11 +297,12 @@ def _sql_statements(sql: str) -> list[str]:
 
 
 def apply_lances_schema(engine: Engine) -> None:
-    """Aplica sql/003 (aditivo). Seguro em banco já populado."""
-    sql = SCHEMA_LANCES_SQL.read_text(encoding="utf-8")
+    """Aplica sql/003 e sql/005 (aditivos). Seguro em banco já populado."""
     with engine.begin() as conn:
-        for stmt in _sql_statements(sql):
-            conn.execute(text(stmt))
+        for path in (SCHEMA_LANCES_SQL, SCHEMA_RUNS_SQL):
+            sql = path.read_text(encoding="utf-8")
+            for stmt in _sql_statements(sql):
+                conn.execute(text(stmt))
 
 
 def persist_lances(

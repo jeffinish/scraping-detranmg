@@ -41,7 +41,7 @@ scraping-detranmg/
 │   ├── PRACTICES.md          # convenções já adotadas
 │   ├── ORCHESTRATION.md      # Airflow + dbt
 │   └── NEXT_STEPS.md         # roadmap
-├── sql/                      # 001_init + 002_airflow + 003_lances + 004_interesse
+├── sql/                      # 001_init + 002_airflow + 003_lances + 004_interesse + 005_max_editais
 ├── notebooks/
 │   ├── 01_exploracao_editais.ipynb
 │   ├── 02_exploracao_lotes.ipynb

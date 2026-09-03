@@ -14,7 +14,7 @@ Leia este arquivo antes de alterar o repositório. Detalhes técnicos e convenç
 | Código do scraper | `src/detran_scraper/` |
 | Transformação SQL (dbt) | `transform/` |
 | UI local (API + Vite/React) | `src/detran_ui/` + `ui/` |
-| Schema Postgres | `sql/001_init.sql` + `sql/002_create_airflow_db.sql` + `sql/003_lotes_lances.sql` + `sql/004_lotes_interesse.sql` |
+| Schema Postgres | `sql/001_init.sql` + `sql/002_create_airflow_db.sql` + `sql/003_lotes_lances.sql` + `sql/004_lotes_interesse.sql` + `sql/005_scrape_runs_max_editais.sql` |
 
 ## Escopo do projeto
 
@@ -41,7 +41,7 @@ Scraper local do portal [leilao.detran.mg.gov.br](https://leilao.detran.mg.gov.b
 1. Preferir o menor diff que resolve o problema.
 2. Não inventar campos no card que o HTML não expõe (ex.: `tipo_veiculo`). Split de `marca_modelo` é T no dbt, não no parser.
 3. Validar parser contra HTML real ou fixture antes de “corrigir” no escuro.
-4. Após mudança de schema: `sql/001_init.sql` (installs novos) + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql` (sem DROP). Models e storage juntos.
+4. Após mudança de schema: `sql/001_init.sql` (installs novos) + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql`, `sql/005_*.sql` (sem DROP). Models e storage juntos.
 5. Não commitar `.env`, dumps HTML locais (`_diag/`), nem outputs grandes de notebook sem pedido.
 
 ## Comando de referência

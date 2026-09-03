@@ -57,6 +57,7 @@ class LoteFiltros:
     ano_min: int | None = None
     ano_max: int | None = None
     somente_interesse: bool = False
+    mostrar_inativos: bool = False
 
 
 def _sql_statements(sql: str) -> list[str]:
@@ -183,6 +184,7 @@ def list_lotes(
     where, params = _where(filtros)
     params["limit"] = page_size
     params["offset"] = max(page - 1, 0) * page_size
+    ativo_select = "l.ativo" if mart_schema() == "mart_dbt" else "TRUE AS ativo"
 
     sql = f"""
         SELECT
@@ -203,6 +205,7 @@ def list_lotes(
             l.marca,
             l.modelo,
             l.ano_veiculo,
+            {ativo_select},
             (i.lote_id IS NOT NULL) AS interesse,
             COUNT(*) OVER() AS total_count
         FROM {lotes} l
@@ -284,5 +287,8 @@ def _where(filtros: LoteFiltros) -> tuple[str, dict]:
 
     if filtros.somente_interesse:
         clauses.append("i.lote_id IS NOT NULL")
+
+    if not filtros.mostrar_inativos and mart_schema() == "mart_dbt":
+        clauses.append("l.ativo")
 
     return " AND ".join(clauses), params

@@ -7,7 +7,7 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 | Componente | Status |
 |------------|--------|
 | Scraper EL (`run.py`) | Grava `raw.*` + `mart.*` (dual-run) |
-| dbt (`transform/`) | `mart_dbt.*` + seed `marca_aliases`; 28 testes |
+| dbt (`transform/`) | `mart_dbt.*` + seed `marca_aliases`; 29 testes |
 | Reconciliação | `scripts/reconcile_mart.py` — colunas do mart Python ainda batem |
 | UI (Vite/React + FastAPI) | Lê `marca` / `modelo` / `ano_veiculo`; interesse em `mart.lotes_interesse` |
 | Airflow local | DAG `detran_scrape_dbt`: scrape → dbt seed+run → dbt test |
@@ -39,7 +39,8 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 ## 4. Curadoria analítica
 
 - [x] Split `marca_modelo` → marca / modelo / `ano_veiculo` em model dbt (`marca_aliases` seed) + UI
-- [ ] Tombstone de lotes/editais ausentes no último run
+- [x] Tombstone de lotes ausentes no último scrape completo (`mart_dbt.mart_lotes.ativo`; UI esconde com toggle)
+- [ ] Histerese de 2 runs / tombstone de edital / probe de detalhe para status de lote
 - [ ] Expor campos de enriquecimento `--lances` na UI (`cor`, `ano_modelo`, `valor_inicial`)
 - [ ] `tipo_veiculo` via enriquecimento (POST por tipo ou PDF — fora do card HTML)
 

@@ -9,6 +9,7 @@ CREATE TABLE raw.scrape_runs (
     started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     finished_at   TIMESTAMPTZ,
     editais_count INTEGER,
+    max_editais   INTEGER,
     status        VARCHAR(20) NOT NULL DEFAULT 'running',
     error_message TEXT,
     CONSTRAINT scrape_runs_status_check

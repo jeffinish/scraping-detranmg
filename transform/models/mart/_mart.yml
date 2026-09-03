@@ -32,6 +32,7 @@ models:
       Estado atual de cada lote. Listagem do último snapshot;
       campos de enriquecimento com last-non-null (equivalente ao COALESCE do storage.py).
       marca / modelo / ano_veiculo são derivados de marca_modelo + seed marca_aliases.
+      ativo = presente no último scrape completo de lotes (sem --max-editais).
     columns:
       - name: lote_id
         tests:
@@ -62,6 +63,12 @@ models:
         description: Ano do modelo no detalhe HTML (--lances). Last-non-null; muitas vezes NULL.
       - name: ano_fabricacao
         description: Ano de fabricação no detalhe HTML (--lances). Last-non-null; muitas vezes NULL.
+      - name: ativo
+        description: >
+          True se o lote aparece em raw.lotes do último scrape_runs success
+          com max_editais IS NULL e pelo menos um lote gravado.
+        tests:
+          - not_null
 
   - name: mart_editais_status_history
     description: Transições de status reconstruídas a partir de raw.editais.

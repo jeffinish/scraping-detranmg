@@ -9,6 +9,7 @@ export type Filtros = {
   anoMin: number | null;
   anoMax: number | null;
   somenteInteresse: boolean;
+  mostrarInativos: boolean;
 };
 
 export type Opcoes = {
@@ -36,6 +37,7 @@ export type Lote = {
   dataEncerramento: string;
   anoVeiculo: string;
   interesse: boolean;
+  ativo: boolean;
 };
 
 export type LotePage = {
@@ -57,6 +59,7 @@ export const emptyFiltros = (): Filtros => ({
   anoMin: null,
   anoMax: null,
   somenteInteresse: false,
+  mostrarInativos: false,
 });
 
 function str(value: unknown, fallback = ""): string {
@@ -101,6 +104,7 @@ export function parseLote(json: Record<string, unknown>): Lote {
     dataEncerramento: fmtDate(json.data_encerramento),
     anoVeiculo: str(json.ano_veiculo, "—"),
     interesse: json.interesse === true,
+    ativo: json.ativo !== false,
   };
 }
 
