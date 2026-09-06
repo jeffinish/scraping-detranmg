@@ -185,6 +185,11 @@ def list_lotes(
     params["limit"] = page_size
     params["offset"] = max(page - 1, 0) * page_size
     ativo_select = "l.ativo" if mart_schema() == "mart_dbt" else "TRUE AS ativo"
+    edital_ativo_select = (
+        "e.ativo AS edital_ativo"
+        if mart_schema() == "mart_dbt"
+        else "TRUE AS edital_ativo"
+    )
 
     sql = f"""
         SELECT
@@ -206,6 +211,7 @@ def list_lotes(
             l.modelo,
             l.ano_veiculo,
             {ativo_select},
+            {edital_ativo_select},
             (i.lote_id IS NOT NULL) AS interesse,
             COUNT(*) OVER() AS total_count
         FROM {lotes} l

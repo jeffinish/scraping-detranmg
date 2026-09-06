@@ -5,6 +5,7 @@ models:
     description: >
       Estado atual de cada leilão, reconstruído a partir de raw.editais.
       Equivalente a mart.editais (upsert Python).
+      ativo = presente no último scrape de home com sucesso e pelo menos um edital.
     columns:
       - name: leilao_id
         description: Identificador do leilão no portal.
@@ -24,6 +25,13 @@ models:
         tests:
           - not_null
       - name: status_changed_at
+        tests:
+          - not_null
+      - name: ativo
+        description: >
+          True se o edital aparece em raw.editais do último scrape_runs success
+          com pelo menos um edital gravado. Independente de lote.ativo;
+          --max-editais não entra na referência (a home sempre é completa).
         tests:
           - not_null
 

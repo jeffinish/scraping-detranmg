@@ -38,6 +38,7 @@ export type Lote = {
   anoVeiculo: string;
   interesse: boolean;
   ativo: boolean;
+  editalAtivo: boolean;
 };
 
 export type LotePage = {
@@ -105,6 +106,7 @@ export function parseLote(json: Record<string, unknown>): Lote {
     anoVeiculo: str(json.ano_veiculo, "—"),
     interesse: json.interesse === true,
     ativo: json.ativo !== false,
+    editalAtivo: json.edital_ativo !== false,
   };
 }
 

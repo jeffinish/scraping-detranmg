@@ -40,7 +40,9 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 
 - [x] Split `marca_modelo` → marca / modelo / `ano_veiculo` em model dbt (`marca_aliases` seed) + UI
 - [x] Tombstone de lotes ausentes no último scrape completo (`mart_dbt.mart_lotes.ativo`; UI esconde com toggle)
-- [ ] Histerese de 2 runs / tombstone de edital / probe de detalhe para status de lote
+- [x] Tombstone de editais ausentes no último scrape de home (`mart_dbt.mart_editais.ativo`; UI chip)
+- [ ] Histerese de 2 runs
+- [ ] Probe de detalhe para status de lote
 - [ ] Expor campos de enriquecimento `--lances` na UI (`cor`, `ano_modelo`, `valor_inicial`)
 - [ ] `tipo_veiculo` via enriquecimento (POST por tipo ou PDF — fora do card HTML)
 
