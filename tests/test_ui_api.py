@@ -23,6 +23,7 @@ def test_lote_payload_usa_proxy_e_serializa():
     assert out["url_imagem"] == "/imagens/1"
     assert out["interesse"] is True
     assert out["ativo"] is True
+    assert out["edital_ativo"] is True
     assert out["valor_atual"] == 1234.5
     assert out["first_seen_at"] == "2026-01-02T03:04:05"
 
@@ -50,3 +51,10 @@ def test_filtros_from_query_trim_modelo():
 def test_lote_payload_respeita_ativo_false():
     out = lote_payload({"lote_id": 1, "ativo": False})
     assert out["ativo"] is False
+    assert out["edital_ativo"] is True
+
+
+def test_lote_payload_respeita_edital_ativo_false():
+    out = lote_payload({"lote_id": 1, "edital_ativo": False})
+    assert out["edital_ativo"] is False
+    assert out["ativo"] is True

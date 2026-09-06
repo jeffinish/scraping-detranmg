@@ -5,6 +5,18 @@
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-surface-container-low);
   border: 1px solid var(--md-sys-color-outline-variant);
+  transition:
+    border-color var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+    background-color var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+}
+
+.card:hover {
+  border-color: var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container);
+}
+
+.card__media-wrap {
+  position: relative;
 }
 
 .card__media {
@@ -23,6 +35,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+}
+
+.card:hover .card__media img {
+  transform: scale(1.04);
 }
 
 .card__fallback {
@@ -39,19 +56,26 @@
   display: flex;
 }
 
+.card__star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  background: color-mix(in srgb, var(--md-sys-color-surface) 82%, transparent);
+  color: var(--md-sys-color-on-surface);
+  backdrop-filter: blur(4px);
+}
+
+.icon-btn.card__star:hover:not(:disabled) {
+  background: var(--md-sys-color-surface);
+}
+
 .card__body {
   padding: 12px;
 }
 
-.card__title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
 .card__title {
   margin: 0;
-  flex: 1;
   font-size: var(--md-sys-typescale-title-medium-size);
   line-height: var(--md-sys-typescale-title-medium-line);
   font-weight: 500;
@@ -61,24 +85,13 @@
   overflow: hidden;
 }
 
-.card__price {
-  margin: 8px 0 4px;
-  font-size: var(--md-sys-typescale-headline-small-size);
-  line-height: var(--md-sys-typescale-headline-small-line);
-  color: var(--md-sys-color-primary);
-  font-weight: 400;
-}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card__media img {
+    transition: none;
+  }
 
-.card__meta {
-  margin: 0;
-  font-size: var(--md-sys-typescale-body-small-size);
-  line-height: var(--md-sys-typescale-body-small-line);
-  color: var(--md-sys-color-on-surface-variant);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card .chips {
-  margin-top: 8px;
+  .card:hover .card__media img {
+    transform: none;
+  }
 }

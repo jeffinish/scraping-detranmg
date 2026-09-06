@@ -78,7 +78,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
   → persist_lotes   (raw append + mart upsert; COALESCE nos campos de enriquecimento)
   → persist_lances  (raw append + mart upsert; não apaga histórico)
   → raw.scrape_runs
-  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; ativo)
+  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; ativo em lotes e editais)
 ```
 
 - **raw:** append-only por `run_id`
@@ -98,6 +98,7 @@ Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (
 | `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
 | `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
 | `mart.lotes_interesse` | Flag manual da UI (`sql/004_lotes_interesse.sql`; a UI aplica na subida) |
+| `mart_dbt.mart_editais` | Estado atual dbt; inclui `ativo` (presente no último scrape de home com sucesso) |
 | `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo` e `ativo` (presente no último scrape completo de lotes) |
 | `staging.marca_aliases` | Seed dbt: prefixos skip (`I`, `IMP`, `Y`, `H`, `JTA`) e alias (`GM`→CHEVROLET, `VW`→VOLKSWAGEN, …) |
 
@@ -131,7 +132,7 @@ python -m detran_ui
 cd ui && npm install && npm run dev
 ```
 
-API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Default esconde `ativo = false` (query `mostrar_inativos`). Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas nem `ativo`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Default esconde `ativo = false` do lote (query `mostrar_inativos`); `edital_ativo` é payload + chip, não filtro. Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas nem `ativo` / `edital_ativo`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
 
 Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 

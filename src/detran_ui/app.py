@@ -93,6 +93,7 @@ def lote_payload(item: dict) -> dict:
     out["url_imagem"] = f"/imagens/{item['lote_id']}"
     out["interesse"] = bool(item.get("interesse"))
     out["ativo"] = bool(item.get("ativo", True))
+    out["edital_ativo"] = bool(item.get("edital_ativo", True))
     return out
 
 
@@ -248,5 +249,6 @@ def run() -> None:
             "Suba o banco: docker compose up -d"
         ) from exc
     _mount_ui()
-    logger.info("Schema de interesse ok. API em http://127.0.0.1:8080")
-    uvicorn.run(app, host="127.0.0.1", port=8080, log_level="info")
+    host = os.getenv("DETRAN_UI_HOST", "0.0.0.0")
+    logger.info("Schema de interesse ok. API em http://%s:8080", host)
+    uvicorn.run(app, host=host, port=8080, log_level="info")

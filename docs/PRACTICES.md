@@ -29,8 +29,8 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
 3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql`, `sql/005_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` e o `005` na subida; a UI aplica o `004`.
-4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. `mart_dbt.mart_lotes.ativo` marca presença no último scrape completo de lotes (`raw.scrape_runs.max_editais` NULL). Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
-5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Card/detalhe mostram `marca`, `modelo`, `ano_veiculo`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Default esconde `ativo = false` (toggle “Mostrar inativos”). Rodar `dbt seed` + `dbt run` após cada scrape antes de abrir a UI.
+4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. `mart_dbt.mart_lotes.ativo` marca presença no último scrape completo de lotes (`raw.scrape_runs.max_editais` NULL). `mart_dbt.mart_editais.ativo` marca presença no último scrape de home com sucesso (pelo menos um edital; `--max-editais` não entra). Os dois flags são independentes. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
+5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Card/detalhe mostram `marca`, `modelo`, `ano_veiculo`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Default esconde lote `ativo = false` (toggle “Mostrar inativos”). Chip “Edital inativo” quando `edital_ativo = false`. Rodar `dbt seed` + `dbt run` após cada scrape antes de abrir a UI.
 
 ## Transformação (dbt)
 
@@ -60,7 +60,8 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 | Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Cutover notebooks → mart_dbt |
 | Testes mínimos de parser (`tests/fixtures/`) | Deploy AWS |
 | dbt + Airflow local (`transform/`, `docs/ORCHESTRATION.md`) | Suite completa + cobertura |
-| Identidade `marca` / `modelo` / `ano_veiculo` (dbt + UI) | Tombstone; expor cor/`valor_inicial` na UI |
+| Identidade `marca` / `modelo` / `ano_veiculo` (dbt + UI) | Histerese de 2 runs; probe de detalhe |
+| Tombstone `ativo` em lotes e editais (dbt + UI) | Expor cor/`valor_inicial` na UI |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 

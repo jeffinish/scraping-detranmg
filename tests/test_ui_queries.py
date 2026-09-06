@@ -27,6 +27,7 @@ def test_where_esconde_inativos_por_padrao(monkeypatch):
     monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
     sql, _params = _where(LoteFiltros())
     assert "l.ativo" in sql
+    assert "e.ativo" not in sql
 
 
 def test_where_mostrar_inativos(monkeypatch):

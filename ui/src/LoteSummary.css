@@ -1,0 +1,21 @@
+.lote-summary .chips {
+  margin-top: 8px;
+}
+
+.lote-summary__price {
+  margin: 8px 0 4px;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+  color: var(--md-sys-color-primary);
+  font-weight: 400;
+}
+
+.lote-summary__meta {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
