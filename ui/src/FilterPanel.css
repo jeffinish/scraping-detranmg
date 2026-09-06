@@ -3,13 +3,15 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px;
+  min-width: 0;
 }
 
 .filters__title {
   margin: 0;
-  font-size: var(--md-sys-typescale-title-medium-size);
-  line-height: var(--md-sys-typescale-title-medium-line);
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
   font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .filters__label {
@@ -20,8 +22,18 @@
 }
 
 .filters__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+}
+
+.filters__row .field {
+  min-width: 0;
+}
+
+.filters__row .field input {
+  width: 100%;
+  min-width: 0;
 }
 
 .multiselect {

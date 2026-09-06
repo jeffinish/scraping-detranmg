@@ -18,6 +18,113 @@
   min-height: 72px;
 }
 
+.brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.brand__title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  font-weight: 500;
+}
+
+.brand__sub {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.sidenav {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--md-sys-color-surface-container-low);
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.sidenav--modal {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 12;
+}
+
+.sidenav__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: var(--md-sys-shape-corner-full);
+  color: var(--md-sys-color-on-surface-variant);
+  text-decoration: none;
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+}
+
+.sidenav__item .material-symbols-outlined,
+.sidenav__item .material-icons {
+  font-size: 24px;
+}
+
+.sidenav__item--active {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.sidenav__item--soon {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.sidenav__item--soon small {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.home {
+  padding: 24px 16px;
+  gap: 16px;
+}
+
+.home h2 {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+  font-weight: 400;
+}
+
+.home p {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.home__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home__actions .btn {
+  width: auto;
+}
+
+.home__hint {
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.chip--link {
+  text-decoration: none;
+  cursor: pointer;
+}
+
 .topbar__title {
   margin: 0;
   font-size: var(--md-sys-typescale-title-large-size);
@@ -124,8 +231,9 @@
 }
 
 .drawer {
-  width: 320px;
+  width: 360px;
   flex-shrink: 0;
+  min-width: 0;
   background: var(--md-sys-color-surface-container-low);
   border-right: 1px solid var(--md-sys-color-outline-variant);
   overflow: auto;
@@ -178,9 +286,32 @@
   gap: 8px;
 }
 
-.toolbar .chip .material-symbols-outlined {
+.toolbar .chip .material-symbols-outlined,
+.toolbar .chip .material-icons {
   color: var(--md-sys-color-tertiary);
   font-size: 18px;
+}
+
+.toolbar__search {
+  flex: 1;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}
+
+.toolbar__search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--md-sys-typescale-body-large-size);
+  outline: none;
 }
 
 .spinner {
@@ -238,11 +369,48 @@
 
 .pager {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 0 16px 16px;
-  font-size: var(--md-sys-typescale-title-medium-size);
+  gap: 4px;
+  padding: 8px 16px;
+}
+
+.pager__num {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  cursor: pointer;
+  transition: background-color var(--md-sys-motion-duration-medium)
+    var(--md-sys-motion-easing-emphasized);
+}
+
+.pager__num:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.pager__num--current {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.pager__ellipsis {
+  min-width: 24px;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pager__num {
+    transition: none;
+  }
 }
 
 .search-sheet {

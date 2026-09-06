@@ -25,6 +25,15 @@
   filter: brightness(1.08);
 }
 
+.btn--tonal {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.btn--tonal:hover {
+  filter: brightness(1.06);
+}
+
 .btn--outlined {
   background: transparent;
   color: var(--md-sys-color-primary);
@@ -53,15 +62,30 @@
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
+  transition: background-color var(--md-sys-motion-duration-medium)
+    var(--md-sys-motion-easing-emphasized);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.icon-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
 }
 
 .icon-btn .fill {
-  color: var(--md-sys-color-tertiary);
+  color: var(--md-sys-color-primary);
 }
 
 .icon-btn--tonal {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
+}
+
+.icon-btn--tonal:hover:not(:disabled) {
+  filter: brightness(1.06);
 }
 
 .chips {
@@ -98,7 +122,24 @@ button.chip {
   background: var(--md-sys-color-surface-container-highest);
 }
 
-.chip .material-symbols-outlined {
+.material-icons {
+  font-family: "Material Icons";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+.chip .material-icons {
   font-size: 18px;
 }
 
@@ -129,6 +170,25 @@ button.chip {
   justify-content: center;
   z-index: 20;
   padding: 16px;
+  animation: backdrop-in var(--md-sys-motion-duration-medium)
+    var(--md-sys-motion-easing-emphasized);
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-backdrop,
+  .icon-btn {
+    animation: none;
+    transition: none;
+  }
 }
 
 .dialog {

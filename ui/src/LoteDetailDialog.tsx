@@ -1,20 +1,17 @@
 import { tituloLote, type Lote } from "./types";
 import { imageUrl } from "./api";
+import { InteresseButton, LoteSummary } from "./LoteSummary";
 import "./LoteDetailDialog.css";
 
 type Props = {
   lote: Lote;
   onClose: () => void;
+  onToggle: () => void;
 };
 
-export function LoteDetailDialog({ lote, onClose }: Props) {
+export function LoteDetailDialog({ lote, onClose, onToggle }: Props) {
   const linhas: [string, string][] = [
-    ["Marca", lote.marca || "—"],
-    ["Ano", lote.anoVeiculo],
-    ["Valor", lote.valorFmt],
-    ["Lote", lote.numeroLote],
     ["Edital", lote.numeroEdital],
-    ["Município", lote.municipio],
     ["Pátio", lote.patio],
     ["Encerramento", lote.dataEncerramento],
   ];
@@ -32,16 +29,15 @@ export function LoteDetailDialog({ lote, onClose }: Props) {
           />
         </div>
         <div className="detail__body">
-          <h2 id="detail-title">{tituloLote(lote)}</h2>
-          <div className="chips">
-            <span className="chip">{lote.condicao}</span>
-            <span className="chip">{lote.statusEdital}</span>
-            {!lote.ativo ? <span className="chip">Inativo</span> : null}
+          <div className="detail__title-row">
+            <h2 id="detail-title">{tituloLote(lote)}</h2>
+            <InteresseButton flagged={lote.interesse} onToggle={onToggle} />
           </div>
+          <LoteSummary lote={lote} />
           {linhas.map(([label, value]) => (
             <div key={label} className="detail__row">
               <span>{label}</span>
-              <strong>{value}</strong>
+              <strong>{value || "—"}</strong>
             </div>
           ))}
           <div className="detail__actions">
