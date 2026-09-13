@@ -27,8 +27,20 @@ function appendList(params: URLSearchParams, key: string, values: string[]) {
   for (const value of values) params.append(key, value);
 }
 
-export function imageUrl(loteId: number): string {
-  return `/imagens/${loteId}`;
+export function imageUrl(loteId: number, slot?: number): string {
+  return slot == null ? `/imagens/${loteId}` : `/imagens/${loteId}/${slot}`;
+}
+
+export type LoteImagemSlot = { slot: number; url: string };
+
+export async function fetchLoteImagens(loteId: number): Promise<LoteImagemSlot[]> {
+  const response = await fetch(`/api/lotes/${loteId}/imagens`);
+  const json = await decode(response);
+  const raw = Array.isArray(json.slots) ? json.slots : [];
+  return raw.map((item) => {
+    const row = item as Record<string, unknown>;
+    return { slot: Number(row.slot), url: String(row.url) };
+  });
 }
 
 export async function fetchOpcoes(): Promise<Opcoes> {

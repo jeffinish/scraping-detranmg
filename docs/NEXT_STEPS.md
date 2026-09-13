@@ -10,7 +10,7 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 | dbt (`transform/`) | `mart_dbt.*` + seed `marca_aliases`; 29 testes |
 | Reconciliação | `scripts/reconcile_mart.py` — colunas do mart Python ainda batem |
 | UI (Vite/React + FastAPI) | Lê `marca` / `modelo` / `ano_veiculo`; interesse em `mart.lotes_interesse` |
-| Airflow local | DAG `detran_scrape_dbt`: scrape → dbt seed+run → dbt test |
+| Airflow local | DAG `detran_scrape_dbt`: scrape lotes → dbt + imagens |
 
 **Carga de referência (2026-08-31):** `run_id=48e777df-…`, 61 editais, 6.346 lotes no scrape; `mart_dbt.mart_lotes` = 11.772 (acumulado sem purge).
 
@@ -45,6 +45,9 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 - [ ] Probe de detalhe para status de lote
 - [ ] Expor campos de enriquecimento `--lances` na UI (`cor`, `ano_modelo`, `valor_inicial`)
 - [ ] `tipo_veiculo` via enriquecimento (POST por tipo ou PDF — fora do card HTML)
+- [x] Download de fotos da galeria (`--imagens`, CAS em `data/imagens/`)
+- [ ] Rótulos humanos naive (válida / preta / baixa qualidade) na amostra exportada
+- [ ] Score de qualidade nas fotos já válidas
 
 ## 5. AWS (quando o DAG local rodar todo dia sem o PC)
 
@@ -56,7 +59,7 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 ## 6. UI
 
 - [x] Card/detalhe com `marca`, `modelo`, `ano_veiculo` parseados
-- [ ] Detalhe do lote / galeria de imagens
+- [x] Detalhe do lote / galeria de imagens
 - [ ] Deploy estático (build Vite + API atrás de reverse proxy) ou manter local
 
 ## Comandos de referência
@@ -65,6 +68,7 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 # Pipeline manual
 docker compose up -d
 python -m detran_scraper.run --lotes
+python -m detran_scraper.run --imagens
 cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
 python scripts/reconcile_mart.py
 

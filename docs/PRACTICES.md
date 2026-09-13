@@ -28,7 +28,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
-3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql`, `sql/005_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003` e o `005` na subida; a UI aplica o `004`.
+3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql`, `sql/005_*.sql`, `sql/006_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003`, o `005` e o `006` na subida; a UI aplica o `004`.
 4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. `mart_dbt.mart_lotes.ativo` marca presença no último scrape completo de lotes (`raw.scrape_runs.max_editais` NULL). `mart_dbt.mart_editais.ativo` marca presença no último scrape de home com sucesso (pelo menos um edital; `--max-editais` não entra). Os dois flags são independentes. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
 5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Card/detalhe mostram `marca`, `modelo`, `ano_veiculo`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Default esconde lote `ativo = false` (toggle “Mostrar inativos”). Chip “Edital inativo” quando `edital_ativo = false`. Rodar `dbt seed` + `dbt run` após cada scrape antes de abrir a UI.
 
@@ -42,7 +42,12 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 ## Orquestração local
 
 1. Airflow via `docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow`.
-2. DAG `detran_scrape_dbt`: scrape → dbt run → dbt test. Ver [ORCHESTRATION.md](ORCHESTRATION.md).
+2. DAG `detran_scrape_dbt`: scrape lotes → (dbt + imagens em paralelo). Ver [ORCHESTRATION.md](ORCHESTRATION.md).
+
+## Imagens
+
+1. Blobs por sha256 em `data/imagens/` (gitignored). Metadado em `raw`/`mart.lotes_imagens`; rótulo humano em `mart.lotes_imagens_labels`.
+2. `--imagens` não abre `scrape_run`. Heurística `naive_valida` ≠ rótulo humano. Detalhe: [IMAGENS.md](IMAGENS.md).
 
 ## Notebooks
 
@@ -56,8 +61,8 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 |----------|----------------|
 | Pipeline CLI end-to-end | CI (GitHub Actions) |
 | Camadas raw/mart + lances (`--lances`) | Enriquecimento `tipo_veiculo` |
-| Retry HTTP | Download de imagens / galeria |
-| Docs de agente (`AGENTS.md`, REFERENCE, PRACTICES) | Cutover notebooks → mart_dbt |
+| Retry HTTP | Cutover notebooks → mart_dbt |
+| Download de imagens (`--imagens`, CAS + rótulos humanos) | Qualidade visual das fotos já válidas |
 | Testes mínimos de parser (`tests/fixtures/`) | Deploy AWS |
 | dbt + Airflow local (`transform/`, `docs/ORCHESTRATION.md`) | Suite completa + cobertura |
 | Identidade `marca` / `modelo` / `ano_veiculo` (dbt + UI) | Histerese de 2 runs; probe de detalhe |

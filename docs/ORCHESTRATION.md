@@ -9,7 +9,7 @@ Contrato para replicar este padrão em outros projetos de scraping/EL.
 | `python -m detran_scraper.run` | **EL** — grava `raw.*` e `mart.*` (Python, até cutover) |
 | `transform/` (dbt) | **T** — reconstrói `mart_dbt.*` a partir de `raw.*` |
 | `src/detran_ui/` + `ui/` | **Consumo** — lê `mart_dbt`; grava `mart.lotes_interesse` |
-| Airflow (`docker-compose.airflow.yml`) | Scheduler: scrape → dbt seed+run → dbt test |
+| Airflow (`docker-compose.airflow.yml`) | Scheduler: scrape lotes → (dbt seed+run → test) ∥ scrape imagens |
 | `scripts/reconcile_mart.py` | Gate de cutover: compara `mart` vs `mart_dbt` |
 
 AWS (EventBridge, ECS, MWAA) fica para o capítulo seguinte, quando o DAG local já rodar todo dia sem depender do PC.
@@ -25,6 +25,7 @@ docker compose up -d
 
 # 2. Scrape (popula raw)
 python -m detran_scraper.run --lotes
+python -m detran_scraper.run --imagens   # galeria CONSERVADO; ver docs/IMAGENS.md
 
 # 3. dbt (host — porta 5435)
 pip install -r transform/requirements.txt
@@ -52,6 +53,7 @@ docker exec detran_airflow airflow dags trigger detran_scrape_dbt
 |----------|-----|
 | `DATABASE_URL` | Scraper + reconcile + UI (host: `localhost:5435`) |
 | `MART_SCHEMA` | Schema analítico da UI (default: `mart_dbt`) |
+| `IMAGENS_DIR` | Galeria CAS (`--imagens`); default `data/imagens/` — [IMAGENS.md](IMAGENS.md) |
 | `DBT_HOST`, `DBT_PORT`, … | dbt (`profiles.yml`); no Airflow: `postgres:5432` |
 | `DETRAN_COOKIE` | Opcional; necessário para `--lances` (não no DAG padrão) |
 
@@ -60,8 +62,9 @@ docker exec detran_airflow airflow dags trigger detran_scrape_dbt
 `airflow/dags/detran_pipeline.py` — `detran_scrape_dbt`:
 
 1. `scrape_lotes` — `python -m detran_scraper.run --lotes`
-2. `dbt_run` — `dbt seed` + `dbt run` (seed `marca_aliases` precisa existir antes do mart)
-3. `dbt_test`
+2. `scrape_imagens` — `python -m detran_scraper.run --imagens` (CONSERVADO incremental; em paralelo com dbt)
+3. `dbt_run` — `dbt seed` + `dbt run` (seed `marca_aliases` precisa existir antes do mart)
+4. `dbt_test`
 
 Schedule: `0 6 * * *` (06:00 UTC). Ajuste no DAG se quiser horário BR.
 
@@ -72,7 +75,7 @@ Copie este esqueleto:
 1. **CLI de carga** com exit code ≠ 0 em falha (`python -m <pkg>.run …`)
 2. **Camada raw** append-only no Postgres (schema `raw`)
 3. **Pasta `transform/`** com dbt: staging 1:1 + mart em schema paralelo até reconciliar
-4. **Um DAG** com três tasks: scrape → dbt run → dbt test
+4. **Um DAG** com scrape → (dbt run ∥ imagens) → dbt test
 5. **Script de reconciliação** antes de apontar notebooks/BI para o mart dbt
 6. **`.env.example`** documentando `DATABASE_URL` e secrets de sessão
 
