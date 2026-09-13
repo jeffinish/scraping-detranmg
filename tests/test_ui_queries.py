@@ -6,6 +6,7 @@ from detran_ui.queries import (
     _sql_statements,
     _where,
     format_brl,
+    slot_usavel,
     url_imagem,
 )
 
@@ -13,6 +14,13 @@ from detran_ui.queries import (
 def test_url_imagem_derivada_do_padrao_da_listagem():
     url = url_imagem(3416, 312935)
     assert url.endswith("/Imagens/visualizar/leiloes/leilao_3416/img_312935_1.jpg")
+
+
+def test_slot_usavel_rejeita_placeholder():
+    assert slot_usavel(is_placeholder=False, naive_motivo="ok") is True
+    assert slot_usavel(is_placeholder=True, naive_motivo="too_small") is False
+    assert slot_usavel(is_placeholder=False, naive_motivo="too_small") is False
+    assert slot_usavel(is_placeholder=True, naive_motivo="ok") is False
 
 
 def test_where_somente_interesse(monkeypatch):

@@ -54,3 +54,14 @@ def test_005_is_additive_only():
             assert f" {needle}" not in f" {lowered}"
     assert "add column if not exists" in sql.lower()
     assert "max_editais" in sql.lower()
+
+
+def test_006_is_additive_only():
+    sql = (ROOT / "sql" / "006_lotes_imagens.sql").read_text(encoding="utf-8")
+    for stmt in _sql_statements(sql):
+        lowered = stmt.lower().lstrip()
+        for needle in FORBIDDEN_PREFIXES:
+            assert not lowered.startswith(needle), f"forbidden statement: {stmt}"
+            assert f" {needle}" not in f" {lowered}"
+    assert "create table if not exists raw.lotes_imagens" in sql.lower()
+    assert "create table if not exists mart.lotes_imagens_labels" in sql.lower()

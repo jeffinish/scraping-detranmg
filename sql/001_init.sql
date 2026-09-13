@@ -152,3 +152,51 @@ CREATE UNIQUE INDEX uq_mart_lotes_lances
     ON mart.lotes_lances (lote_id, valor, lance_em, arrematante)
     NULLS NOT DISTINCT;
 CREATE INDEX idx_mart_lotes_lances_lote ON mart.lotes_lances (lote_id);
+
+-- Imagens: blobs em data/imagens/; rótulo humano por sha256 (ver sql/006).
+CREATE TABLE raw.lotes_imagens (
+    id            BIGSERIAL PRIMARY KEY,
+    run_id        UUID NOT NULL REFERENCES raw.scrape_runs (run_id),
+    scraped_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    lote_id       INTEGER NOT NULL,
+    leilao_id     INTEGER NOT NULL,
+    slot          SMALLINT NOT NULL,
+    sha256        CHAR(64) NOT NULL,
+    byte_size     INTEGER NOT NULL,
+    source_url    TEXT NOT NULL,
+    relpath       TEXT,
+    naive_valida  BOOLEAN NOT NULL,
+    naive_motivo  VARCHAR(40) NOT NULL,
+    is_placeholder BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (run_id, lote_id, slot)
+);
+
+CREATE INDEX idx_raw_lotes_imagens_lote ON raw.lotes_imagens (lote_id, slot);
+CREATE INDEX idx_raw_lotes_imagens_sha ON raw.lotes_imagens (sha256);
+
+CREATE TABLE mart.lotes_imagens (
+    lote_id        INTEGER NOT NULL,
+    slot           SMALLINT NOT NULL,
+    leilao_id      INTEGER NOT NULL,
+    sha256         CHAR(64) NOT NULL,
+    byte_size      INTEGER NOT NULL,
+    relpath        TEXT,
+    naive_valida   BOOLEAN NOT NULL,
+    naive_motivo   VARCHAR(40) NOT NULL,
+    is_placeholder BOOLEAN NOT NULL DEFAULT FALSE,
+    first_seen_at  TIMESTAMPTZ NOT NULL,
+    last_seen_at   TIMESTAMPTZ NOT NULL,
+    last_run_id    UUID REFERENCES raw.scrape_runs (run_id),
+    PRIMARY KEY (lote_id, slot)
+);
+
+CREATE INDEX idx_mart_lotes_imagens_sha ON mart.lotes_imagens (sha256);
+CREATE INDEX idx_mart_lotes_imagens_naive ON mart.lotes_imagens (naive_valida);
+
+CREATE TABLE mart.lotes_imagens_labels (
+    sha256     CHAR(64) PRIMARY KEY,
+    valida     BOOLEAN NOT NULL,
+    motivo     VARCHAR(40),
+    labeled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes      TEXT
+);

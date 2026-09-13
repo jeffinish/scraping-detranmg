@@ -14,13 +14,11 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from detran_scraper.client import DEFAULT_BASE_URL
+from detran_scraper.imagens import imagens_root
+from detran_scraper.imagens import imagem_url as url_imagem
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_SQL = REPO_ROOT / "sql" / "004_lotes_interesse.sql"
-
-# ponytail: listing thumbnail is always img_{lote_id}_1.jpg.
-_IMAGEM_PATH = "/Imagens/visualizar/leiloes/leilao_{leilao_id}/img_{lote_id}_1.jpg"
 
 
 def mart_schema() -> str:
@@ -76,12 +74,6 @@ def apply_schema(engine: Engine) -> None:
     with engine.begin() as conn:
         for stmt in _sql_statements(sql):
             conn.execute(text(stmt))
-
-
-def url_imagem(leilao_id: int, lote_id: int, base_url: str = DEFAULT_BASE_URL) -> str:
-    """Monta a URL do thumbnail da listagem (sem persistir)."""
-    path = _IMAGEM_PATH.format(leilao_id=leilao_id, lote_id=lote_id)
-    return f"{base_url.rstrip('/')}{path}"
 
 
 def format_brl(value: Decimal | float | None) -> str:
@@ -151,6 +143,61 @@ def get_leilao_id(engine: Engine, lote_id: int) -> int | None:
             {"lote_id": lote_id},
         ).fetchone()
     return int(row[0]) if row else None
+
+
+def slot_usavel(*, is_placeholder: bool, naive_motivo: str) -> bool:
+    """Foto do carrossel/card: não é o JPEG preto do portal."""
+    return (not is_placeholder) and naive_motivo != "too_small"
+
+
+_SQL_SLOT_USAVEL = "is_placeholder = FALSE AND naive_motivo <> 'too_small'"
+
+
+def list_slots_usaveis(engine: Engine, lote_id: int) -> list[int]:
+    """Slots com foto usável, em ordem. Não dispara download."""
+    sql = text(f"""
+        SELECT slot FROM mart.lotes_imagens
+        WHERE lote_id = :lote_id AND {_SQL_SLOT_USAVEL}
+        ORDER BY slot
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(sql, {"lote_id": lote_id}).scalars().all()
+    return [int(slot) for slot in rows]
+
+
+def lookup_blob(
+    engine: Engine,
+    lote_id: int,
+    slot: int | None = None,
+) -> tuple[Path, str] | None:
+    """Caminho absoluto + sha256 da foto usável. slot None = primeira usável."""
+    if slot is None:
+        sql = text(f"""
+            SELECT slot, sha256, relpath FROM mart.lotes_imagens
+            WHERE lote_id = :lote_id AND {_SQL_SLOT_USAVEL}
+            ORDER BY slot
+            LIMIT 1
+        """)
+        params: dict = {"lote_id": lote_id}
+    else:
+        sql = text(f"""
+            SELECT slot, sha256, relpath FROM mart.lotes_imagens
+            WHERE lote_id = :lote_id AND slot = :slot AND {_SQL_SLOT_USAVEL}
+        """)
+        params = {"lote_id": lote_id, "slot": slot}
+    with engine.connect() as conn:
+        row = conn.execute(sql, params).mappings().fetchone()
+    if row is None or not row["relpath"]:
+        return None
+    root = imagens_root().resolve()
+    path = (root / str(row["relpath"])).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    if not path.is_file():
+        return None
+    return path, str(row["sha256"]).strip()
 
 
 def set_interesse(engine: Engine, lote_id: int, flagged: bool) -> None:

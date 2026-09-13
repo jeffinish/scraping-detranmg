@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-from detran_scraper.models import Edital, Lance, Lote
+from detran_scraper.models import Edital, Lance, Lote, LoteImagem
 
 INSERT_RAW_EDITAL = text("""
     INSERT INTO raw.editais (
@@ -158,6 +158,7 @@ UPDATE_MART_LANCE = text("""
 _SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
 SCHEMA_LANCES_SQL = _SQL_DIR / "003_lotes_lances.sql"
 SCHEMA_RUNS_SQL = _SQL_DIR / "005_scrape_runs_max_editais.sql"
+SCHEMA_IMAGENS_SQL = _SQL_DIR / "006_lotes_imagens.sql"
 
 
 def create_db_engine(database_url: str) -> Engine:
@@ -297,9 +298,9 @@ def _sql_statements(sql: str) -> list[str]:
 
 
 def apply_lances_schema(engine: Engine) -> None:
-    """Aplica sql/003 e sql/005 (aditivos). Seguro em banco já populado."""
+    """Aplica sql/003, sql/005 e sql/006 (aditivos). Seguro em banco já populado."""
     with engine.begin() as conn:
-        for path in (SCHEMA_LANCES_SQL, SCHEMA_RUNS_SQL):
+        for path in (SCHEMA_LANCES_SQL, SCHEMA_RUNS_SQL, SCHEMA_IMAGENS_SQL):
             sql = path.read_text(encoding="utf-8")
             for stmt in _sql_statements(sql):
                 conn.execute(text(stmt))
@@ -334,6 +335,148 @@ def persist_lances(
             else:
                 conn.execute(UPDATE_MART_LANCE, {**params, "id": row[0]})
     return inserted
+
+
+SELECT_LATEST_FULL_RUN = text("""
+    SELECT s.run_id
+    FROM raw.scrape_runs AS s
+    WHERE s.status = 'success'
+        AND s.max_editais IS NULL
+        AND EXISTS (
+            SELECT 1 FROM raw.lotes AS l WHERE l.run_id = s.run_id
+        )
+    ORDER BY s.finished_at DESC NULLS LAST, s.started_at DESC
+    LIMIT 1
+""")
+
+SELECT_CONSERVADOS_PENDENTES = text("""
+    SELECT DISTINCT l.lote_id, l.leilao_id
+    FROM raw.lotes AS l
+    WHERE l.run_id = :run_id
+        AND UPPER(l.condicao) = 'CONSERVADO'
+        AND NOT EXISTS (
+            SELECT 1 FROM mart.lotes_imagens AS i WHERE i.lote_id = l.lote_id
+        )
+    ORDER BY l.lote_id
+    LIMIT :limite
+""")
+
+INSERT_RAW_IMAGEM = text("""
+    INSERT INTO raw.lotes_imagens (
+        run_id, scraped_at, lote_id, leilao_id, slot, sha256, byte_size,
+        source_url, relpath, naive_valida, naive_motivo, is_placeholder
+    ) VALUES (
+        :run_id, :seen_at, :lote_id, :leilao_id, :slot, :sha256, :byte_size,
+        :source_url, :relpath, :naive_valida, :naive_motivo, :is_placeholder
+    )
+    ON CONFLICT (run_id, lote_id, slot) DO NOTHING
+""")
+
+UPSERT_MART_IMAGEM = text("""
+    INSERT INTO mart.lotes_imagens (
+        lote_id, slot, leilao_id, sha256, byte_size, relpath,
+        naive_valida, naive_motivo, is_placeholder,
+        first_seen_at, last_seen_at, last_run_id
+    ) VALUES (
+        :lote_id, :slot, :leilao_id, :sha256, :byte_size, :relpath,
+        :naive_valida, :naive_motivo, :is_placeholder,
+        :seen_at, :seen_at, :run_id
+    )
+    ON CONFLICT (lote_id, slot) DO UPDATE SET
+        leilao_id = EXCLUDED.leilao_id,
+        sha256 = EXCLUDED.sha256,
+        byte_size = EXCLUDED.byte_size,
+        relpath = EXCLUDED.relpath,
+        naive_valida = EXCLUDED.naive_valida,
+        naive_motivo = EXCLUDED.naive_motivo,
+        is_placeholder = EXCLUDED.is_placeholder,
+        last_seen_at = EXCLUDED.last_seen_at,
+        last_run_id = EXCLUDED.last_run_id
+""")
+
+UPSERT_IMAGEM_LABEL = text("""
+    INSERT INTO mart.lotes_imagens_labels (sha256, valida, motivo, notes, labeled_at)
+    VALUES (:sha256, :valida, :motivo, :notes, NOW())
+    ON CONFLICT (sha256) DO UPDATE SET
+        valida = EXCLUDED.valida,
+        motivo = EXCLUDED.motivo,
+        notes = EXCLUDED.notes,
+        labeled_at = NOW()
+""")
+
+
+def latest_full_lotes_run_id(engine: Engine) -> uuid.UUID | None:
+    """Último scrape completo de lotes (mesmo critério do dbt tombstone)."""
+    with engine.connect() as conn:
+        row = conn.execute(SELECT_LATEST_FULL_RUN).fetchone()
+    return row[0] if row else None
+
+
+def list_conservados_pendentes(
+    engine: Engine,
+    run_id: uuid.UUID,
+    *,
+    limit: int | None = None,
+) -> list[tuple[int, int]]:
+    """CONSERVADO do run ainda sem nenhuma foto no mart. (lote_id, leilao_id)."""
+    limite = limit if limit is not None else 1_000_000
+    with engine.connect() as conn:
+        rows = conn.execute(
+            SELECT_CONSERVADOS_PENDENTES,
+            {"run_id": run_id, "limite": limite},
+        ).fetchall()
+    return [(int(row[0]), int(row[1])) for row in rows]
+
+
+def persist_lotes_imagens(
+    engine: Engine,
+    imagens: list[LoteImagem],
+    run_id: uuid.UUID,
+) -> int:
+    """Append raw + upsert mart por (lote_id, slot)."""
+    if not imagens:
+        return 0
+    seen_at = datetime.now(UTC)
+    with engine.begin() as conn:
+        for img in imagens:
+            params = {
+                "run_id": run_id,
+                "seen_at": seen_at,
+                "lote_id": img.lote_id,
+                "leilao_id": img.leilao_id,
+                "slot": img.slot,
+                "sha256": img.sha256,
+                "byte_size": img.byte_size,
+                "source_url": img.source_url,
+                "relpath": img.relpath,
+                "naive_valida": img.naive_valida,
+                "naive_motivo": img.naive_motivo,
+                "is_placeholder": img.is_placeholder,
+            }
+            conn.execute(INSERT_RAW_IMAGEM, params)
+            conn.execute(UPSERT_MART_IMAGEM, params)
+    return len(imagens)
+
+
+def persist_imagem_labels(
+    engine: Engine,
+    rows: list[tuple[str, bool, str | None, str | None]],
+) -> int:
+    """Upsert rótulos humanos (sha256, valida, motivo, notes)."""
+    if not rows:
+        return 0
+    with engine.begin() as conn:
+        for digest, valida, motivo, notes in rows:
+            conn.execute(
+                UPSERT_IMAGEM_LABEL,
+                {
+                    "sha256": digest,
+                    "valida": valida,
+                    "motivo": motivo,
+                    "notes": notes,
+                },
+            )
+    return len(rows)
 
 
 def _edital_params(

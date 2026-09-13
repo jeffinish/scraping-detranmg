@@ -52,13 +52,13 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 - Cabeçalho: spans em `div.card-body b` → `numero_lote`, `condicao`
 - `marca_modelo`: bold em `div.card-body div.row` / `div.col-12.text-center` (string bruta; split é dbt, não parser)
 - Valor: `p#valor_atual_lote_{lote_id}` (`R$ 1.234,56`)
-- Foto (não persistida): `img.card-img-top` → `/Imagens/visualizar/leiloes/leilao_{leilao_id}/img_{lote_id}_1.jpg`. A UI deriva essa URL; o scraper não grava `url_imagem`.
+- Foto: `img.card-img-top` → `/Imagens/visualizar/leiloes/leilao_{leilao_id}/img_{lote_id}_1.jpg`. `--imagens` persiste o JPEG em `data/imagens/blobs/`. A UI local serve o CAS (`/imagens/{lote_id}`), não o portal.
 - Paginação: `ul.pagination a.page-link[href*='page=']` → `parse_lotes_max_page`
 - Densidade típica: ~8 lotes/página
 
 ### Detalhe HTML (`parse_lote_detalhe`)
 
-`dl dt` / `dd`: Valor Inicial, Cor, Ano do Modelo, Ano de Fabricação, Combustível. Sem campo “Tipo”. Galeria `img_{lote_id}_N.jpg` não é persistida.
+`dl dt` / `dd`: Valor Inicial, Cor, Ano do Modelo, Ano de Fabricação, Combustível. Sem campo “Tipo”. Galeria `img_{lote_id}_N.jpg`: `--imagens` varre slots 1..12 até o JPEG placeholder (~5 KB, HTTP 200) e grava blobs por sha256.
 
 ### JSON logado (`parse_update_countdown` / `parse_update_single`)
 
@@ -69,8 +69,8 @@ A home e a listagem de lotes têm formulário POST com campos `Leiloes[...]`:
 ## Pipeline
 
 ```
-python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
-  → apply sql/003 e sql/005 (aditivos)
+python -m detran_scraper.run [--lotes] [--lances] [--imagens] [--max-editais N]
+  → apply sql/003, sql/005 e sql/006 (aditivos)
   → fetch_home → parse_editais
   → [opcional] fetch_lotes_pages por edital → parse_lotes_from_pages
   → [--lances] Em Andamento: updateCountdown + updateSingleCountdown + HTML detalhe
@@ -78,6 +78,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
   → persist_lotes   (raw append + mart upsert; COALESCE nos campos de enriquecimento)
   → persist_lances  (raw append + mart upsert; não apaga histórico)
   → raw.scrape_runs
+  → [--imagens] CONSERVADO sem foto: GET img_N até placeholder; CAS em data/imagens/blobs/; raw/mart.lotes_imagens (anexa ao último scrape completo — não cria scrape_run)
   → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; ativo em lotes e editais)
 ```
 
@@ -87,7 +88,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--max-editais N]
 
 ## Schema (resumo)
 
-Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (banco Airflow), `sql/003_lotes_lances.sql`, `sql/004_lotes_interesse.sql` e `sql/005_scrape_runs_max_editais.sql` (volumes existentes: só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
+Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (banco Airflow), `sql/003_lotes_lances.sql`, `sql/004_lotes_interesse.sql`, `sql/005_scrape_runs_max_editais.sql` e `sql/006_lotes_imagens.sql` (volumes existentes: só `ADD COLUMN` / `CREATE TABLE IF NOT EXISTS`). Postgres via Docker na porta host **5435**.
 
 | Tabela | Papel |
 |--------|-------|
@@ -98,17 +99,21 @@ Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (
 | `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
 | `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
 | `mart.lotes_interesse` | Flag manual da UI (`sql/004_lotes_interesse.sql`; a UI aplica na subida) |
+| `raw.lotes_imagens` / `mart.lotes_imagens` | Galeria: slot → sha256 + heurística `naive_valida`; blobs em `data/imagens/` |
+| `mart.lotes_imagens_labels` | Rótulo humano por sha256 (`valida` / `motivo`) |
 | `mart_dbt.mart_editais` | Estado atual dbt; inclui `ativo` (presente no último scrape de home com sucesso) |
 | `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo` e `ativo` (presente no último scrape completo de lotes) |
 | `staging.marca_aliases` | Seed dbt: prefixos skip (`I`, `IMP`, `Y`, `H`, `JTA`) e alias (`GM`→CHEVROLET, `VW`→VOLKSWAGEN, …) |
 
 ## Modelos Python
 
-`Edital`, `Lote` e `Lance` em `models.py`: `@dataclass(frozen=True, slots=True)`. Para DataFrame use `dataclasses.asdict()`, não `__dict__`.
+`Edital`, `Lote`, `Lance` e `LoteImagem` em `models.py`: `@dataclass(frozen=True, slots=True)`. Para DataFrame use `dataclasses.asdict()`, não `__dict__`.
 
 Campos de lote na listagem: `lote_id`, `leilao_id`, `numero_lote`, `condicao`, `marca_modelo`, `valor_atual`, `valor_inicial=None`, `url_detalhes`, `raw_hash`.
 
 `--lances` preenche `valor_inicial`, `cor`, `ano_modelo`, `ano_fabricacao`, `combustivel`, `valor_incremento`, `status_lote` e grava `Lance`.
+
+`--imagens`, export/import de rótulos e heurística `naive_valida`: [IMAGENS.md](IMAGENS.md).
 
 ## Identidade do lote (dbt)
 
@@ -132,7 +137,7 @@ python -m detran_ui
 cd ui && npm install && npm run dev
 ```
 
-API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Default esconde `ativo = false` do lote (query `mostrar_inativos`); `edital_ativo` é payload + chip, não filtro. Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas nem `ativo` / `edital_ativo`. Foto: proxy `/imagens/{lote_id}` com headers de browser; URL derivada, não coluna no mart.
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Default esconde `ativo = false` do lote (query `mostrar_inativos`); `edital_ativo` é payload + chip, não filtro. Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas nem `ativo` / `edital_ativo`. Foto do card: `GET /imagens/{lote_id}` serve a primeira foto usável do CAS (`mart.lotes_imagens`, sem placeholder). Detalhe: `GET /api/lotes/{id}/imagens` lista slots; se o mart não tem linha, baixa e persiste (mesmo `--imagens`). Carrossel no dialog. Rótulos humanos continuam no CSV ([IMAGENS.md](IMAGENS.md)).
 
 Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 
@@ -144,6 +149,8 @@ Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0
 | `02_exploracao_lotes.ipynb` | Validar listagem + paginação |
 | `03_analise_mart.ipynb` | KPIs Altair sobre mart |
 | `04_watchlist_alertas.ipynb` | Interesse do usuário + alerta de lotes novos |
+
+Rótulos de foto: CSV em `data/imagens/rotulos/` ([IMAGENS.md](IMAGENS.md)), não um notebook de produção.
 
 ## Carga recente (referência)
 

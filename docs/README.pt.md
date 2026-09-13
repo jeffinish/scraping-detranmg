@@ -12,7 +12,7 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → 
 |---------|--------|
 | Pacote Python (`httpx` + BeautifulSoup) | Pronto |
 | Extração de editais (home) e lotes (listagem + paginação) | Pronto |
-| CLI `python -m detran_scraper.run [--lotes] [--lances]` | Pronto |
+| CLI `python -m detran_scraper.run [--lotes] [--lances] [--imagens]` | Pronto |
 | Postgres local (Docker, porta **5435**) com camadas raw/mart | Pronto |
 | Notebooks 01–03 (exploração + Altair no mart) | Pronto |
 | Notebook 04 (watchlist / alerta de lotes novos) | Pronto |
@@ -24,6 +24,8 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → 
 | CI (GitHub Actions) | Pendente |
 | Histórico de lances + detalhe (zona logada, `--lances`) | Pronto |
 | Persistência de `tipo_veiculo` (só existe como filtro UI) | Pendente |
+| Galeria de fotos (`--imagens`, CAS + rótulos) | Pronto — ver [IMAGENS.md](IMAGENS.md) |
+| Score de qualidade nas fotos já válidas | Pendente |
 | Cutover notebooks → `mart_dbt` / remover upsert Python | Pendente |
 | Deploy AWS | Pendente |
 
@@ -38,10 +40,11 @@ scraping-detranmg/
 ├── docs/
 │   ├── README.pt.md          # esta página
 │   ├── REFERENCE.md          # URLs, seletores, schema, pipeline
+│   ├── IMAGENS.md            # galeria CAS + rótulos humanos
 │   ├── PRACTICES.md          # convenções já adotadas
 │   ├── ORCHESTRATION.md      # Airflow + dbt
 │   └── NEXT_STEPS.md         # roadmap
-├── sql/                      # 001_init + 002_airflow + 003_lances + 004_interesse + 005_max_editais
+├── sql/                      # 001_init + 002_airflow + 003_lances + 004_interesse + 005_max_editais + 006_imagens
 ├── notebooks/
 │   ├── 01_exploracao_editais.ipynb
 │   ├── 02_exploracao_lotes.ipynb
@@ -52,6 +55,7 @@ scraping-detranmg/
 │   ├── models.py
 │   ├── parsers.py
 │   ├── storage.py
+│   ├── imagens.py            # download CAS + heurística + CSV de rótulos
 │   └── run.py
 ├── src/detran_ui/            # API FastAPI (`pip install -e ".[ui]"`)
 ├── ui/                       # cliente Vite + React
@@ -85,6 +89,9 @@ python -m detran_scraper.run
 # editais + lotes
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --lotes --max-editais 1
+python -m detran_scraper.run --imagens
+python -m detran_scraper.run --export-rotulos --max-lotes 200
+python -m detran_scraper.run --import-rotulos data/imagens/rotulos/labels.csv
 python -m detran_scraper.run --lances
 
 # dbt (após scrape; porta 5435)
@@ -110,7 +117,8 @@ run.py --lotes
   ├─► mart.editais / mart.lotes   # estado atual (upsert Python, dual-run)
   ├─► mart_dbt.* (dbt)            # mart analítico (UI); marca/modelo/ano_veiculo
   ├─► mart.editais_status_history
-  └─► mart.lotes_interesse        # flag da UI (sql/004)
+  ├─► mart.lotes_interesse        # flag da UI (sql/004)
+  └─► mart.lotes_imagens          # galeria CAS + labels (sql/006; IMAGENS.md)
 ```
 
 ### Campos (listagem)
@@ -130,7 +138,7 @@ O portal oferece filtros de **tipo / marca / modelo / ano / cor / condição**, 
 | `03` | KPIs e gráficos Altair no mart |
 | `04` | Watchlist: interesse + alerta de lotes novos |
 
-Pré-requisito para `03` e `04`: rodar `python -m detran_scraper.run --lotes` (ou `--max-editais 1 --lotes` para um teste rápido). A UI exige `dbt seed` + `dbt run` depois do scrape.
+Pré-requisito para `03` e `04`: rodar `python -m detran_scraper.run --lotes` (ou `--max-editais 1 --lotes` para um teste rápido). A UI exige `dbt seed` + `dbt run` depois do scrape. Fotos: [`IMAGENS.md`](IMAGENS.md).
 
 ```bash
 jupyter notebook notebooks/03_analise_mart.ipynb

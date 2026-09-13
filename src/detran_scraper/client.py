@@ -79,6 +79,19 @@ class DetranClient:
         assert last_error is not None
         raise last_error
 
+    def fetch_bytes(self, path: str) -> bytes | None:
+        """GET de arquivo binário. 404 / não-imagem → None (slot inexistente)."""
+        try:
+            response = self._get(path)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return None
+            raise
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("image/") or not response.content:
+            return None
+        return response.content
+
     def fetch(self, path: str) -> str:
         """Baixa HTML de um path relativo ao portal.
 

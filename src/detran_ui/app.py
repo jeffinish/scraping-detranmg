@@ -1,27 +1,24 @@
-"""API FastAPI: lotes, flag de interesse, proxy da foto, estáticos do Vite."""
+"""API FastAPI: lotes, flag de interesse, fotos do CAS, estáticos do Vite."""
 
 from __future__ import annotations
 
 import logging
 import os
-import time
-from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated
 
-import httpx
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 
-from detran_scraper.client import DEFAULT_HEADERS
+from detran_scraper.imagens import ensure_galeria_lote
 from detran_scraper.storage import create_db_engine
 from detran_ui.queries import (
     LoteFiltros,
@@ -30,29 +27,18 @@ from detran_ui.queries import (
     get_leilao_id,
     list_lotes,
     list_opcoes,
+    list_slots_usaveis,
+    lookup_blob,
     set_interesse,
-    url_imagem,
 )
 
 logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 24
-CACHE_TTL_S = 300.0
-CACHE_MAX = 256
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WEB_DIR = REPO_ROOT / "ui" / "dist"
 
 _engine: Engine | None = None
-_http = httpx.Client(headers=DEFAULT_HEADERS, timeout=20.0, follow_redirects=True)
-_img_cache: OrderedDict[int, tuple[float, bytes, str]] = OrderedDict()
-
-_PLACEHOLDER = (
-    b'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240">'
-    b'<rect fill="#ECEFF1" width="100%" height="100%"/>'
-    b'<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" '
-    b'fill="#90A4AE" font-family="Roboto,sans-serif" font-size="16">Sem foto</text>'
-    b"</svg>"
-)
 
 app = FastAPI(title="Lotes DETRAN/MG")
 app.add_middleware(
@@ -74,8 +60,15 @@ def _db() -> Engine:
     return _engine
 
 
-def _placeholder() -> Response:
-    return Response(content=_PLACEHOLDER, media_type="image/svg+xml")
+def _file_jpeg(path: Path, sha256: str) -> FileResponse:
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "private, max-age=60",
+            "ETag": f'"{sha256}"',
+        },
+    )
 
 
 def _jsonable(value: object) -> object:
@@ -125,34 +118,44 @@ def filtros_from_query(
     )
 
 
+@app.get("/imagens/{lote_id}/{slot}")
+def serve_imagem_slot(lote_id: int, slot: int) -> FileResponse:
+    """JPEG do CAS para um slot usável. 404 se placeholder ou ausente."""
+    found = lookup_blob(_db(), lote_id, slot)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Foto ausente")
+    return _file_jpeg(*found)
+
+
 @app.get("/imagens/{lote_id}")
-def proxy_imagem(lote_id: int) -> Response:
-    """Busca o thumbnail no portal (headers de browser) e devolve ao card."""
-    now = time.monotonic()
-    cached = _img_cache.get(lote_id)
-    if cached is not None and cached[0] > now:
-        _img_cache.move_to_end(lote_id)
-        return Response(content=cached[1], media_type=cached[2])
+def serve_imagem(lote_id: int) -> FileResponse:
+    """Primeira foto usável do lote (card). Não dispara download."""
+    found = lookup_blob(_db(), lote_id, None)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Foto ausente")
+    return _file_jpeg(*found)
 
-    leilao_id = get_leilao_id(_db(), lote_id)
+
+@app.get("/api/lotes/{lote_id}/imagens")
+def api_lote_imagens(lote_id: int) -> dict:
+    """Slots usáveis. Se o mart não tem linha, baixa e persiste (on-demand)."""
+    engine = _db()
+    leilao_id = get_leilao_id(engine, lote_id)
     if leilao_id is None:
-        return _placeholder()
-
+        raise HTTPException(status_code=404, detail="Lote não encontrado")
     try:
-        response = _http.get(url_imagem(leilao_id, lote_id))
-        if response.status_code != 200 or not response.content:
-            return _placeholder()
-        content_type = response.headers.get("content-type", "image/jpeg")
-        if not content_type.startswith("image/"):
-            return _placeholder()
-        _img_cache[lote_id] = (now + CACHE_TTL_S, response.content, content_type)
-        _img_cache.move_to_end(lote_id)
-        while len(_img_cache) > CACHE_MAX:
-            _img_cache.popitem(last=False)
-        return Response(content=response.content, media_type=content_type)
-    except httpx.HTTPError:
-        logger.debug("Falha ao buscar imagem do lote %s", lote_id, exc_info=True)
-        return _placeholder()
+        ensure_galeria_lote(engine, lote_id=lote_id, leilao_id=leilao_id)
+    except Exception as exc:
+        logger.warning("On-demand imagens falhou lote %s: %s", lote_id, exc)
+        raise HTTPException(status_code=502, detail="Falha ao buscar galeria") from exc
+    slots = list_slots_usaveis(engine, lote_id)
+    return {
+        "lote_id": lote_id,
+        "slots": [
+            {"slot": slot, "url": f"/imagens/{lote_id}/{slot}"}
+            for slot in slots
+        ],
+    }
 
 
 @app.get("/api/opcoes")

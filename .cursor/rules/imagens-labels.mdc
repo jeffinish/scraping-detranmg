@@ -1,0 +1,13 @@
+---
+description: Capítulo de rótulos humanos das fotos da galeria (naive vs label). Não scrape/dbt.
+globs: docs/IMAGENS.md,src/detran_scraper/imagens.py,sql/006_lotes_imagens.sql,data/imagens/rotulos/**
+alwaysApply: false
+---
+
+# Rótulos de imagens
+
+Leia `docs/IMAGENS.md` antes de qualquer mudança.
+
+Este chat trata **só** do baseline humano (`mart.lotes_imagens_labels`): export/import CSV, rubrica “foto usável”, acordo com `naive_valida`.
+
+Não executar `--lotes`, dbt ou o DAG. Não treinar modelo. Não pontuar qualidade do veículo (passo 3). `--imagens` só se o mart de fotos estiver vazio e o usuário pedir.

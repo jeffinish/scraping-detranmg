@@ -9,7 +9,7 @@ Local data pipeline that scrapes **auction notices and vehicle lots** from the [
 - Layered Python package (~700 LOC): HTTP client → HTML parsers → immutable domain models → Postgres persistence
 - **Raw / mart** pattern with run tracking, status history, and `first_seen_at` / `last_seen_at` for change detection
 - **dbt** rebuilds `mart_dbt` from `raw` with tests and docs (parallel to Python mart until cutover); lot identity (`marca` / `modelo` / `ano_veiculo`) from `marca_modelo` + seed `marca_aliases`
-- **Airflow** local DAG: daily scrape → dbt seed+run → dbt test
+- **Airflow** local DAG: daily scrape → dbt seed+run → dbt test; imagens da galeria em paralelo (`--imagens`)
 - **Vite/React UI** reads `mart_dbt` via FastAPI (parsed brand/model/year on cards); interest flags in `mart.lotes_interesse`
 - Resilient HTTP: browser-like headers, session cookies, exponential retry on transient errors
 - Offline parser tests with HTML fixtures (no network in CI-ready tests)
@@ -27,6 +27,10 @@ docker compose up -d
 
 # Minimal scrape (~2 min): one edital + its lots
 python -m detran_scraper.run --lotes --max-editais 1
+# Gallery (CONSERVADO, incremental — docs/IMAGENS.md)
+python -m detran_scraper.run --imagens --max-lotes 20
+python -m detran_scraper.run --export-rotulos --max-lotes 200
+# python -m detran_scraper.run --import-rotulos data/imagens/rotulos/labels.csv
 # Logged-in bids + lot detail fields (needs DETRAN_COOKIE in .env)
 python -m detran_scraper.run --lances --max-editais 1
 
@@ -86,7 +90,8 @@ run.py --lotes
   ├─► mart.editais / mart.lotes    # current state (upsert Python, dual-run)
   ├─► mart_dbt.* (dbt)             # analytical mart (UI + cutover target)
   ├─► mart.editais_status_history  # status transitions
-  └─► mart.lotes_interesse         # UI star flag (sql/004)
+  ├─► mart.lotes_interesse         # UI star flag (sql/004)
+  └─► mart.lotes_imagens (+ labels) # gallery CAS (sql/006; docs/IMAGENS.md)
 ```
 
 **Listing fields:** edital (`leilao_id`, `municipio`, `patio`, `status`, …) and lot (`lote_id`, `marca_modelo`, `valor_atual`, `condicao`, …). dbt adds `marca`, `modelo`, `ano_veiculo`, and `ativo` on `mart_dbt.mart_lotes` (UI); `ativo` on `mart_dbt.mart_editais` (UI chip). `--lances` fills `valor_inicial`, color, `ano_modelo` / `ano_fabricacao`, fuel, increment, status, and `lotes_lances`.
@@ -97,6 +102,9 @@ run.py --lotes
 python -m detran_scraper.run              # editais only
 python -m detran_scraper.run --lotes      # editais + all lots
 python -m detran_scraper.run --lotes --max-editais 1
+python -m detran_scraper.run --imagens
+python -m detran_scraper.run --export-rotulos --max-lotes 200
+python -m detran_scraper.run --import-rotulos data/imagens/rotulos/labels.csv
 python -m detran_scraper.run --lances
 ```
 
@@ -115,14 +123,15 @@ Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in the GU
 
 | Done | Planned |
 |------|---------|
-| End-to-end CLI pipeline | Detail-page scrape / image gallery |
-| Raw/mart Postgres layers | CI (GitHub Actions) |
-| Parser unit tests (fixtures) | `tipo_veiculo` enrichment |
-| Watchlist notebook | AWS deploy |
-| dbt `mart_dbt` + reconcile script | Cutover notebooks → mart_dbt |
-| Airflow local DAG | Tombstone of lots missing from last run |
-| Local Vite/React lot browser (reads `mart_dbt`) | Expose `--lances` fields (`cor`, `valor_inicial`) in UI |
+| End-to-end CLI pipeline | CI (GitHub Actions) |
+| Raw/mart Postgres layers | `tipo_veiculo` enrichment |
+| Parser unit tests (fixtures) | AWS deploy |
+| Watchlist notebook | Cutover notebooks → mart_dbt |
+| dbt `mart_dbt` + reconcile script | Expose `--lances` fields (`cor`, `valor_inicial`) in UI |
+| Airflow local DAG | |
+| Local Vite/React lot browser (reads `mart_dbt`) | |
 | Split `marca_modelo` → `marca` / `modelo` / `ano_veiculo` (dbt + UI) | |
+| Gallery download (`--imagens`, CAS + human labels) | Photo quality score on valid images |
 
 ## Limitations
 
@@ -141,7 +150,7 @@ scraping-detranmg/
 ├── airflow/dags/           # Airflow DAGs
 ├── scripts/                # reconcile_mart.py
 ├── tests/fixtures/         # offline HTML for parser tests
-├── sql/                    # 001 + 002_airflow + 003_lances + 004_interesse
+├── sql/                    # 001 + 002_airflow + 003_lances + 004_interesse + 005_max_editais + 006_imagens
 ├── notebooks/              # exploration and analytics
 ├── docs/                   # technical reference (PT)
 └── docker-compose.yml      # Postgres on host port 5435
