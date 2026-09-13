@@ -7,10 +7,17 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from detran_scraper.client import DetranClient, normalize_cookie
+from detran_scraper.imagens import (
+    download_imagens_conservados,
+    export_amostra_rotulos,
+    imagens_root,
+    import_rotulos_csv,
+)
 from detran_scraper.models import Lance, Lote
 from detran_scraper.parsers import (
     apply_lote_enriquecimento,
@@ -198,6 +205,33 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Limita quantidade de editais ao extrair lotes (útil para testes)",
     )
+    parser.add_argument(
+        "--imagens",
+        action="store_true",
+        help="Baixa galeria dos lotes CONSERVADO ainda sem foto (não cria scrape_run)",
+    )
+    parser.add_argument(
+        "--max-lotes",
+        type=int,
+        default=None,
+        help="Teto de lotes em --imagens / --export-rotulos",
+    )
+    parser.add_argument(
+        "--export-rotulos",
+        action="store_true",
+        help="Exporta amostra CSV+JPEGs para rótulo humano (data/imagens/rotulos)",
+    )
+    parser.add_argument(
+        "--stress",
+        action="store_true",
+        help="Com --export-rotulos: amostra de bordas (arquivo pequeno, sem placeholder, slot 12)",
+    )
+    parser.add_argument(
+        "--import-rotulos",
+        type=str,
+        default=None,
+        help="Importa labels.csv (coluna valida) para mart.lotes_imagens_labels",
+    )
     args = parser.parse_args(argv)
 
     if args.lances:
@@ -214,6 +248,32 @@ def main(argv: list[str] | None = None) -> int:
 
     engine = create_db_engine(args.database_url)
     apply_lances_schema(engine)
+
+    if args.import_rotulos:
+        n = import_rotulos_csv(engine, Path(args.import_rotulos))
+        logger.info("Rótulos importados: %d", n)
+        return 0
+    if args.export_rotulos:
+        dest = imagens_root() / "rotulos"
+        n_default = 40 if args.stress else 200
+        path = export_amostra_rotulos(
+            engine,
+            dest,
+            n=args.max_lotes or n_default,
+            stress=args.stress,
+        )
+        logger.info("CSV em %s", path)
+        return 0
+    if args.imagens:
+        with DetranClient(base_url=args.base_url, cookie=cookie) as client:
+            lotes_n, fotos_n = download_imagens_conservados(
+                client,
+                engine,
+                max_lotes=args.max_lotes,
+            )
+        logger.info("Imagens: %d lotes, %d slots persistidos", lotes_n, fotos_n)
+        return 0
+
     run_id = start_scrape_run(engine)
     logger.info("run_id=%s", run_id)
 

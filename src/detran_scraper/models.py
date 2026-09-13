@@ -53,3 +53,19 @@ class Lance:
     arrematante: str | None
     peso: Decimal | None = None
     valor_quilo: Decimal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LoteImagem:
+    """Uma foto da galeria (slot N), identificada pelo hash do conteúdo."""
+
+    lote_id: int
+    leilao_id: int
+    slot: int
+    sha256: str
+    byte_size: int
+    source_url: str
+    relpath: str | None
+    naive_valida: bool
+    naive_motivo: str
+    is_placeholder: bool
