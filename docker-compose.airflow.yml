@@ -20,8 +20,11 @@ services:
       DBT_USER: scraper
       DBT_PASSWORD: scraper
       DBT_DATABASE: detran_leiloes
+      IMAGENS_DIR: /opt/project/data/imagens
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+      # Código atual (scraper + transform/); sem isso o dbt da imagem antiga rebaixa o mart.
+      - .:/opt/project
     ports:
       - "8090:8080"
     depends_on:

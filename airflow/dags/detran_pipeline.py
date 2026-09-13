@@ -37,6 +37,7 @@ with DAG(
     schedule="0 6 * * *",
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    max_active_runs=1,
     default_args=default_args,
     tags=["detran", "dbt"],
 ) as dag:
@@ -44,6 +45,15 @@ with DAG(
         task_id="scrape_lotes",
         bash_command="cd /opt/project && python -m detran_scraper.run --lotes",
         env={"DATABASE_URL": DB_URL},
+    )
+
+    scrape_imagens = BashOperator(
+        task_id="scrape_imagens",
+        bash_command="cd /opt/project && python -m detran_scraper.run --imagens",
+        env={
+            "DATABASE_URL": DB_URL,
+            "IMAGENS_DIR": os.environ.get("IMAGENS_DIR", "/opt/project/data/imagens"),
+        },
     )
 
     dbt_run = BashOperator(
@@ -61,4 +71,5 @@ with DAG(
         env=DBT_ENV,
     )
 
-    scrape_lotes >> dbt_run >> dbt_test
+    scrape_lotes >> [dbt_run, scrape_imagens]
+    dbt_run >> dbt_test
