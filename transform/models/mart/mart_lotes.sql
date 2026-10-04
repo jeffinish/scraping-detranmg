@@ -128,6 +128,23 @@ SELECT
     COALESCE(a2.marca_canonica, i.marca_raw) AS marca,
     i.modelo,
     i.ano_veiculo,
+    -- ponytail: prefixo ^token no modelo; Honda "125" fica veiculo.
+    -- Upgrade: token novo no seed moto_regras.
+    CASE
+        WHEN COALESCE(a2.marca_canonica, i.marca_raw) IN (
+            SELECT token FROM {{ ref('moto_regras') }} WHERE escopo = 'marca'
+        ) THEN 'moto'
+        WHEN COALESCE(a2.marca_canonica, i.marca_raw) IN (
+            SELECT token FROM {{ ref('moto_regras') }} WHERE escopo = 'ambigua'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM {{ ref('moto_regras') }} AS r
+            WHERE r.escopo = 'modelo'
+              AND UPPER(i.modelo) ~ ('^' || r.token)
+        ) THEN 'moto'
+        ELSE 'veiculo'
+    END AS categoria,
     e.valor_inicial,
     i.valor_atual,
     i.url_detalhes,

@@ -16,3 +16,25 @@ seeds:
           - accepted_values:
               arguments:
                 values: ["skip", "alias"]
+
+  - name: moto_regras
+    description: >
+      Classifica o lote como moto. escopo=marca: a marca é só moto.
+      escopo=ambigua + escopo=modelo: prefixo no início de modelo
+      (CB pega CBX, XL pega XLR, XR pega XRE, NX pega NXR).
+      Qualquer outro lote fica veiculo.
+      Teto: Honda com modelo só numérico (125) fica veiculo;
+      AMV/PUMA, reboque (R, SR) e Freelander ficam veiculo.
+      Carro de marca só-moto (Yamaha) seria moto — Honda e Suzuki
+      ficam em ambigua por isso.
+    columns:
+      - name: escopo
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["marca", "ambigua", "modelo"]
+      - name: token
+        tests:
+          - unique
+          - not_null

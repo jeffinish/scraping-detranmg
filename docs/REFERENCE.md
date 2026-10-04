@@ -79,7 +79,7 @@ python -m detran_scraper.run [--lotes] [--lances] [--imagens] [--max-editais N]
   → persist_lances  (raw append + mart upsert; não apaga histórico)
   → raw.scrape_runs
   → [--imagens] CONSERVADO sem foto: GET img_N até placeholder; CAS em data/imagens/blobs/; raw/mart.lotes_imagens (anexa ao último scrape completo — não cria scrape_run)
-  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; ativo em lotes e editais)
+  → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; categoria veiculo/moto; ativo em lotes e editais)
 ```
 
 - **raw:** append-only por `run_id`
@@ -102,8 +102,9 @@ Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (
 | `raw.lotes_imagens` / `mart.lotes_imagens` | Galeria: slot → sha256 + heurística `naive_valida`; blobs em `data/imagens/` |
 | `mart.lotes_imagens_labels` | Rótulo humano por sha256 (`valida` / `motivo`) |
 | `mart_dbt.mart_editais` | Estado atual dbt; inclui `ativo` (presente no último scrape de home com sucesso) |
-| `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo` e `ativo` (presente no último scrape completo de lotes) |
+| `mart_dbt.mart_lotes` | Estado atual dbt; inclui `marca`, `modelo`, `ano_veiculo`, `categoria` (`veiculo`/`moto`) e `ativo` (presente no último scrape completo de lotes) |
 | `staging.marca_aliases` | Seed dbt: prefixos skip (`I`, `IMP`, `Y`, `H`, `JTA`) e alias (`GM`→CHEVROLET, `VW`→VOLKSWAGEN, …) |
+| `staging.moto_regras` | Seed dbt: marca só-moto, marca ambígua (Honda, Suzuki) e prefixo de modelo |
 
 ## Modelos Python
 
@@ -124,8 +125,11 @@ O card só expõe `marca_modelo`. O parser **não** split. `mart_dbt.mart_lotes`
 | `marca` | Token antes de `/`, depois do seed (skip ou alias). Sem `/`: NULL |
 | `modelo` | Texto após a marca, sem o ano do sufixo |
 | `ano_veiculo` | Ano 19xx/20xx no **sufixo**; senão o primeiro na string. Usar grupo POSIX não-capturante — `(19|20)` sozinho faz o Postgres devolver `19`/`20` |
+| `categoria` | `moto` se a marca está no seed como só-moto, ou se a marca é ambígua (Honda, Suzuki) e `modelo` começa com um prefixo do seed (`CG`, `CB`, `BIZ`, …). Senão `veiculo`. Não é o `tipo_veiculo` do formulário do portal |
 
 Seed: [`transform/seeds/marca_aliases.csv`](../transform/seeds/marca_aliases.csv). Token ausente = split simples. Teto conhecido: `I/LR …` → marca `LR`; `R`/`REB` (reboques); `JTA-SUZUKI` (4 lotes, token distinto de `JTA`).
+
+Categoria: [`transform/seeds/moto_regras.csv`](../transform/seeds/moto_regras.csv). Teto: Honda com modelo só numérico (`125`) fica `veiculo`; AMV/PUMA, reboque e Freelander ficam `veiculo`. Carro de marca só-moto (Yamaha) seria `moto` — Honda e Suzuki ficam ambíguas por isso.
 
 `ano_modelo` / `ano_fabricacao` continuam sendo enriquecimento `--lances` (last-non-null), outra fonte.
 
