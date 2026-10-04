@@ -43,6 +43,57 @@ export async function fetchLoteImagens(loteId: number): Promise<LoteImagemSlot[]
   });
 }
 
+export type AnalyticsMunicipio = {
+  municipio: string;
+  veiculo: number;
+  moto: number;
+};
+
+export type AnalyticsEdital = {
+  leilaoId: number;
+  numeroEdital: string;
+  municipio: string;
+  status: string;
+  dataEncerramento: string;
+  veiculo: number;
+  moto: number;
+};
+
+export type Analytics = {
+  municipios: AnalyticsMunicipio[];
+  editais: AnalyticsEdital[];
+};
+
+export async function fetchAnalytics(): Promise<Analytics> {
+  const response = await fetch("/api/analytics");
+  const json = await decode(response);
+  const municipios = Array.isArray(json.municipios) ? json.municipios : [];
+  const editais = Array.isArray(json.editais) ? json.editais : [];
+  return {
+    municipios: municipios.map((item) => {
+      const row = item as Record<string, unknown>;
+      return {
+        municipio: String(row.municipio ?? ""),
+        veiculo: Number(row.veiculo ?? 0),
+        moto: Number(row.moto ?? 0),
+      };
+    }),
+    editais: editais.map((item) => {
+      const row = item as Record<string, unknown>;
+      const data = row.data_encerramento == null ? "" : String(row.data_encerramento);
+      return {
+        leilaoId: Number(row.leilao_id),
+        numeroEdital: String(row.numero_edital ?? ""),
+        municipio: String(row.municipio ?? ""),
+        status: String(row.status ?? ""),
+        dataEncerramento: data.length >= 10 ? data.slice(0, 10) : data,
+        veiculo: Number(row.veiculo ?? 0),
+        moto: Number(row.moto ?? 0),
+      };
+    }),
+  };
+}
+
 export async function fetchOpcoes(): Promise<Opcoes> {
   const response = await fetch("/api/opcoes");
   return parseOpcoes(await decode(response));
@@ -69,6 +120,8 @@ export async function fetchLotes(
   appendList(params, "municipios", filtros.municipios);
   appendList(params, "condicoes", filtros.condicoes);
   appendList(params, "status_edital", filtros.statusEdital);
+  appendList(params, "categorias", filtros.categorias);
+  if (filtros.leilaoId != null) params.set("leilao_id", String(filtros.leilaoId));
   const response = await fetch(`/api/lotes?${params}`);
   return parseLotePage(await decode(response));
 }

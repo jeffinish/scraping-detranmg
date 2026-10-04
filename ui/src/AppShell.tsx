@@ -6,6 +6,7 @@ const NAV = [
   { to: "/", label: "Home", icon: "home", end: true },
   { to: "/lotes", label: "Busca de lotes", icon: "search", end: false },
   { to: "/interesse", label: "Lotes de interesse", icon: "star", end: false },
+  { to: "/analytics", label: "Analytics", icon: "monitoring", end: false },
 ] as const;
 
 export function AppShell() {
@@ -26,11 +27,6 @@ export function AppShell() {
           {item.label}
         </NavLink>
       ))}
-      <span className="sidenav__item sidenav__item--soon" title="Em breve">
-        <span className="material-symbols-outlined">monitoring</span>
-        Analytics
-        <small>em breve</small>
-      </span>
     </nav>
   );
 

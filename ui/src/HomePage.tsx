@@ -13,10 +13,10 @@ export function HomePage() {
           <Link to="/interesse" className="btn btn--tonal">
             Lotes de interesse
           </Link>
+          <Link to="/analytics" className="btn btn--outlined">
+            Analytics
+          </Link>
         </div>
-        <p className="home__hint">
-          Analytics (totais, lotes por status) entra numa próxima iteração.
-        </p>
       </div>
     </main>
   );
