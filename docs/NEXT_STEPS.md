@@ -44,6 +44,7 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 - [ ] Histerese de 2 runs
 - [ ] Probe de detalhe para status de lote
 - [ ] Expor campos de enriquecimento `--lances` na UI (`cor`, `ano_modelo`, `valor_inicial`)
+- [x] `categoria` veiculo/moto no lote via seed `moto_regras` (não é o `tipo_veiculo` do portal)
 - [ ] `tipo_veiculo` via enriquecimento (POST por tipo ou PDF — fora do card HTML)
 - [x] Download de fotos da galeria (`--imagens`, CAS em `data/imagens/`)
 - [ ] Rótulos humanos naive (válida / preta / baixa qualidade) na amostra exportada

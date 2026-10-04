@@ -40,6 +40,7 @@ models:
       Estado atual de cada lote. Listagem do último snapshot;
       campos de enriquecimento com last-non-null (equivalente ao COALESCE do storage.py).
       marca / modelo / ano_veiculo são derivados de marca_modelo + seed marca_aliases.
+      categoria (veiculo/moto) vem do seed moto_regras, não do filtro tipo_veiculo do portal.
       ativo = presente no último scrape completo de lotes (sem --max-editais).
     columns:
       - name: lote_id
@@ -67,6 +68,15 @@ models:
         description: >
           Ano 19xx/20xx no sufixo do card; se não houver, o primeiro na string.
           Distinto de ano_modelo / ano_fabricacao (detalhe --lances).
+      - name: categoria
+        description: >
+          veiculo ou moto. Marca só-moto no seed, ou prefixo de modelo
+          quando a marca é ambigua (Honda, Suzuki). O resto é veiculo.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["veiculo", "moto"]
       - name: ano_modelo
         description: Ano do modelo no detalhe HTML (--lances). Last-non-null; muitas vezes NULL.
       - name: ano_fabricacao
