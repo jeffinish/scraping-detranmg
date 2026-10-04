@@ -25,6 +25,7 @@ from detran_ui.queries import (
     apply_schema,
     count_interesse,
     get_leilao_id,
+    list_analytics,
     list_lotes,
     list_opcoes,
     list_slots_usaveis,
@@ -102,6 +103,8 @@ def filtros_from_query(
     ano_max: int | None,
     somente_interesse: bool,
     mostrar_inativos: bool,
+    categorias: list[str] | None = None,
+    leilao_id: int | None = None,
 ) -> LoteFiltros:
     return LoteFiltros(
         marcas=marcas,
@@ -115,6 +118,8 @@ def filtros_from_query(
         ano_max=ano_max,
         somente_interesse=somente_interesse,
         mostrar_inativos=mostrar_inativos,
+        categorias=categorias or [],
+        leilao_id=leilao_id,
     )
 
 
@@ -170,6 +175,24 @@ def api_opcoes() -> dict:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.get("/api/analytics")
+def api_analytics() -> dict:
+    try:
+        data = list_analytics(_db())
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "municipios": [row_payload(row) for row in data["municipios"]],
+        "editais": [row_payload(row) for row in data["editais"]],
+    }
+
+
+def row_payload(item: dict) -> dict:
+    return {key: _jsonable(value) for key, value in item.items()}
+
+
 @app.get("/api/lotes")
 def api_lotes(
     marcas: Annotated[list[str] | None, Query()] = None,
@@ -183,6 +206,8 @@ def api_lotes(
     ano_max: int | None = None,
     somente_interesse: bool = False,
     mostrar_inativos: bool = False,
+    categorias: Annotated[list[str] | None, Query()] = None,
+    leilao_id: int | None = None,
     page: int = 1,
     page_size: int = PAGE_SIZE,
 ) -> dict:
@@ -198,6 +223,8 @@ def api_lotes(
         ano_max=ano_max,
         somente_interesse=somente_interesse,
         mostrar_inativos=mostrar_inativos,
+        categorias=categorias or [],
+        leilao_id=leilao_id,
     )
     try:
         lotes, total = list_lotes(_db(), filtros, page=page, page_size=page_size)

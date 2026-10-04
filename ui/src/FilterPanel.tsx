@@ -54,6 +54,23 @@ export function FilterPanel({ filtros, opcoes, onChange, onApply, onClear }: Pro
         selected={filtros.municipios}
         onChange={(municipios) => onChange({ ...filtros, municipios })}
       />
+      <p className="filters__label">Categoria</p>
+      <ChipWrap
+        options={["veiculo", "moto"]}
+        labels={{ veiculo: "Veículo", moto: "Moto" }}
+        selected={filtros.categorias}
+        onChange={(categorias) => onChange({ ...filtros, categorias })}
+      />
+      {filtros.leilaoId != null && (
+        <button
+          type="button"
+          className="chip chip--input"
+          onClick={() => onChange({ ...filtros, leilaoId: null })}
+        >
+          Este edital
+          <span className="material-symbols-outlined">close</span>
+        </button>
+      )}
       <p className="filters__label">Condição</p>
       <ChipWrap
         options={opcoes?.condicoes ?? []}
@@ -140,10 +157,12 @@ function ChipWrap({
   options,
   selected,
   onChange,
+  labels,
 }: {
   options: string[];
   selected: string[];
   onChange: (next: string[]) => void;
+  labels?: Record<string, string>;
 }) {
   return (
     <div className="chips">
@@ -158,7 +177,7 @@ function ChipWrap({
               onChange(on ? selected.filter((s) => s !== option) : [...selected, option])
             }
           >
-            {option}
+            {labels?.[option] ?? option}
           </button>
         );
       })}

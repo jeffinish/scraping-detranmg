@@ -61,6 +61,24 @@ def test_where_marca_e_valor():
     assert "valor_atual >=" in sql
 
 
+def test_where_categoria_so_no_dbt(monkeypatch):
+    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
+    sql, params = _where(LoteFiltros(categorias=["Moto"], leilao_id=42))
+    assert params["cat_0"] == "moto"
+    assert params["leilao_id"] == 42
+    assert "l.categoria" in sql
+    assert "l.leilao_id = :leilao_id" in sql
+
+
+def test_where_categoria_ignorada_no_mart_python(monkeypatch):
+    monkeypatch.setenv("MART_SCHEMA", "mart")
+    from detran_ui import queries
+
+    sql, params = queries._where(queries.LoteFiltros(categorias=["moto"]))
+    assert "l.categoria" not in sql
+    assert "cat_0" not in params
+
+
 def test_where_modelo_e_ano():
     sql, params = _where(LoteFiltros(modelo_contem="gol", ano_min=2010, ano_max=2020))
     assert params["modelo"] == "%gol%"

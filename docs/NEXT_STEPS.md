@@ -61,6 +61,7 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 
 - [x] Card/detalhe com `marca`, `modelo`, `ano_veiculo` parseados
 - [x] Detalhe do lote / galeria de imagens
+- [x] Analytics: lotes por município e editais, com contagem veículo/moto e link para a busca
 - [ ] Deploy estático (build Vite + API atrás de reverse proxy) ou manter local
 
 ## Comandos de referência
