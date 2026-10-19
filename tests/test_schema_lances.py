@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from detran_scraper.storage import UPDATE_MART_LOTE, _sql_statements
+from detran_scraper.storage import _sql_statements
 
 ROOT = Path(__file__).resolve().parents[1]
 SQL_003 = ROOT / "sql" / "003_lotes_lances.sql"
@@ -31,18 +31,18 @@ def test_003_uses_if_not_exists():
     assert "create table if not exists mart.lotes_lances" in sql
 
 
-def test_mart_lote_update_does_not_blank_enrichment():
-    sql = str(UPDATE_MART_LOTE).lower()
-    for col in (
-        "valor_inicial",
-        "cor",
-        "ano_modelo",
-        "ano_fabricacao",
-        "combustivel",
-        "valor_incremento",
-        "status_lote",
+def test_storage_does_not_write_analytical_mart():
+    src = (ROOT / "src" / "detran_scraper" / "storage.py").read_text(encoding="utf-8").lower()
+    for needle in (
+        "into mart.editais",
+        "update mart.editais",
+        "into mart.lotes ",
+        "update mart.lotes ",
+        "into mart.lotes_lances",
+        "update mart.lotes_lances",
+        "mart.editais_status_history",
     ):
-        assert f"coalesce(:{col}, {col})" in sql
+        assert needle not in src
 
 
 def test_005_is_additive_only():

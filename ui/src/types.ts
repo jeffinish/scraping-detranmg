@@ -10,6 +10,8 @@ export type Filtros = {
   anoMax: number | null;
   somenteInteresse: boolean;
   mostrarInativos: boolean;
+  categorias: string[];
+  leilaoId: number | null;
 };
 
 export type Opcoes = {
@@ -61,6 +63,8 @@ export const emptyFiltros = (): Filtros => ({
   anoMax: null,
   somenteInteresse: false,
   mostrarInativos: false,
+  categorias: [],
+  leilaoId: null,
 });
 
 function str(value: unknown, fallback = ""): string {

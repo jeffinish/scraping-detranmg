@@ -23,32 +23,21 @@ def test_slot_usavel_rejeita_placeholder():
     assert slot_usavel(is_placeholder=True, naive_motivo="ok") is False
 
 
-def test_where_somente_interesse(monkeypatch):
-    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
+def test_where_somente_interesse():
     sql, params = _where(LoteFiltros(somente_interesse=True))
     assert "i.lote_id IS NOT NULL" in sql
     assert "l.ativo" in sql
     assert params == {}
 
 
-def test_where_esconde_inativos_por_padrao(monkeypatch):
-    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
+def test_where_esconde_inativos_por_padrao():
     sql, _params = _where(LoteFiltros())
     assert "l.ativo" in sql
     assert "e.ativo" not in sql
 
 
-def test_where_mostrar_inativos(monkeypatch):
-    monkeypatch.setenv("MART_SCHEMA", "mart_dbt")
+def test_where_mostrar_inativos():
     sql, _params = _where(LoteFiltros(mostrar_inativos=True))
-    assert "l.ativo" not in sql
-
-
-def test_where_mart_python_nao_filtra_ativo(monkeypatch):
-    monkeypatch.setenv("MART_SCHEMA", "mart")
-    from detran_ui import queries
-
-    sql, _params = queries._where(queries.LoteFiltros())
     assert "l.ativo" not in sql
 
 
@@ -59,6 +48,14 @@ def test_where_marca_e_valor():
     assert params["valor_max"] == 10_000
     assert "l.marca" in sql
     assert "valor_atual >=" in sql
+
+
+def test_where_categoria_e_edital():
+    sql, params = _where(LoteFiltros(categorias=["Moto"], leilao_id=42))
+    assert params["cat_0"] == "moto"
+    assert params["leilao_id"] == 42
+    assert "l.categoria" in sql
+    assert "l.leilao_id = :leilao_id" in sql
 
 
 def test_where_modelo_e_ano():
@@ -86,8 +83,7 @@ def test_sql_004_nao_executa_comentario_com_ponto_e_virgula():
     assert "ADD CONSTRAINT" in stmts[4].upper()
 
 
-def test_mart_schema_default(monkeypatch):
-    monkeypatch.delenv("MART_SCHEMA", raising=False)
+def test_mart_schema_e_mart_dbt():
     from detran_ui import queries
 
     assert queries.mart_schema() == "mart_dbt"

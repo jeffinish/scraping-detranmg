@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { fetchLotes, fetchOpcoes, setInteresse } from "./api";
 import { FilterPanel } from "./FilterPanel";
 import { LoteCard } from "./LoteCard";
@@ -27,11 +27,28 @@ function baseFiltros(opcoes: Opcoes | null, interesse: boolean): Filtros {
     ...emptyFiltros(),
     statusEdital: statusDefault(opcoes),
     somenteInteresse: interesse,
+    categorias: ["veiculo"],
+  };
+}
+
+function filtrosFromSearch(opcoes: Opcoes | null, interesse: boolean, params: URLSearchParams): Filtros {
+  const base = baseFiltros(opcoes, interesse);
+  const municipio = params.get("municipio")?.trim() ?? "";
+  const categoria = (params.get("categoria") ?? "").trim().toLowerCase();
+  const leilaoRaw = (params.get("leilao_id") ?? "").trim();
+  const leilaoId = Number.parseInt(leilaoRaw, 10);
+  return {
+    ...base,
+    municipios: municipio ? [municipio] : [],
+    categorias: categoria === "veiculo" || categoria === "moto" ? [categoria] : base.categorias,
+    leilaoId: leilaoRaw && Number.isFinite(leilaoId) ? leilaoId : null,
   };
 }
 
 export function LotesPage({ interesse = false }: { interesse?: boolean }) {
   const compact = useCompact();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.toString();
   const [filtros, setFiltros] = useState<Filtros>(() => emptyFiltros());
   const [opcoes, setOpcoes] = useState<Opcoes | null>(null);
   const [lotes, setLotes] = useState<Lote[]>([]);
@@ -80,14 +97,14 @@ export function LotesPage({ interesse = false }: { interesse?: boolean }) {
       const nextOpcoes = await fetchOpcoes();
       setOpcoes(nextOpcoes);
       setInteresseCount(nextOpcoes.interesseCount);
-      const nextFiltros = baseFiltros(nextOpcoes, interesse);
+      const nextFiltros = filtrosFromSearch(nextOpcoes, interesse, new URLSearchParams(query));
       setFiltros(nextFiltros);
       await load(nextFiltros, 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setLoading(false);
     }
-  }, [interesse, load]);
+  }, [interesse, load, query]);
 
   useEffect(() => {
     void bootstrap();
@@ -147,10 +164,14 @@ export function LotesPage({ interesse = false }: { interesse?: boolean }) {
               void load(next, 1);
             }}
             onClear={() => {
-              const next = baseFiltros(opcoes, interesse);
-              setFiltros(next);
               setSearch("");
               setDrawerOpen(false);
+              if (query) {
+                setSearchParams({}, { replace: true });
+                return;
+              }
+              const next = baseFiltros(opcoes, interesse);
+              setFiltros(next);
               void load(next, 1);
             }}
           />

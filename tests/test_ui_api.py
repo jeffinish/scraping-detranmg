@@ -48,6 +48,27 @@ def test_filtros_from_query_trim_modelo():
     assert filtros.mostrar_inativos is False
 
 
+def test_filtros_from_query_categoria_e_edital():
+    filtros = filtros_from_query(
+        marcas=[],
+        modelo_contem="",
+        municipios=["Juiz De Fora"],
+        condicoes=[],
+        status_edital=[],
+        valor_min=None,
+        valor_max=None,
+        ano_min=None,
+        ano_max=None,
+        somente_interesse=False,
+        mostrar_inativos=False,
+        categorias=["veiculo"],
+        leilao_id=17,
+    )
+    assert filtros.categorias == ["veiculo"]
+    assert filtros.leilao_id == 17
+    assert filtros.municipios == ["Juiz De Fora"]
+
+
 def test_lote_payload_respeita_ativo_false():
     out = lote_payload({"lote_id": 1, "ativo": False})
     assert out["ativo"] is False

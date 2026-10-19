@@ -14,7 +14,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 1. **Dataclasses imutáveis** (`frozen=True`, `slots=True`) para `Edital` / `Lote` / `Lance`.
 2. **Dinheiro como `Decimal`**, não `float`. Parsing BRL via `parse_brl`.
 3. **Hash do card** (`raw_hash`) para detectar mudança de HTML do item.
-4. **Camadas raw/mart:** raw = histórico append-only; mart = upsert do estado atual. Não misturar responsabilidades.
+4. **Camadas:** raw = histórico append-only. Estado analítico = dbt (`mart_dbt`), reconstruído de `raw`. `mart` guarda só o operacional (interesse, imagens, rótulos). Não misturar responsabilidades.
 5. **Não inventar campos.** Se o HTML do card não tem o atributo (ex.: `tipo_veiculo`), não fingir que o parser “extrai” — documentar e, se necessário, enriquecer por outro caminho (filtro POST, detalhe, PDF).
 
 ## HTTP e robustez
@@ -29,14 +29,14 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 1. Docker Compose, porta host **5435** (evitar conflito com Postgres padrão).
 2. Credenciais e URL em `.env` (nunca commitado); template em `.env.example`.
 3. Schema versionado em `sql/001_init.sql` + incrementos aditivos `sql/003_*.sql`, `sql/004_*.sql`, `sql/005_*.sql`, `sql/006_*.sql` (sem DROP). Volumes Docker existentes não reexecutam o `001`; o scraper aplica o `003`, o `005` e o `006` na subida; a UI aplica o `004`.
-4. Mart **não faz purge** automático de leilões/lotes ausentes no run atual; números do mart ≥ do último scrape. `mart_dbt.mart_lotes.ativo` marca presença no último scrape completo de lotes (`raw.scrape_runs.max_editais` NULL). `mart_dbt.mart_editais.ativo` marca presença no último scrape de home com sucesso (pelo menos um edital; `--max-editais` não entra). Os dois flags são independentes. Lances em `mart.lotes_lances` também só acumulam. Upsert de lote usa `COALESCE` nos campos de enriquecimento para um `--lotes` sem `--lances` não apagar cor/ano/`valor_inicial`.
+4. O mart analítico **não faz purge**. `mart_dbt.mart_lotes.ativo` marca presença no último scrape completo de lotes (`raw.scrape_runs.max_editais` NULL). `mart_dbt.mart_editais.ativo` marca presença no último scrape de home com sucesso (pelo menos um edital; `--max-editais` não entra). Os dois flags são independentes. Enriquecimento (`cor`, `ano_modelo`, `valor_inicial`, …) usa `last_non_null` no dbt, para um `--lotes` sem `--lances` não apagar o detalhe. `mart.editais`, `mart.lotes`, `mart.lotes_lances` e `mart.editais_status_history` não são mais escritas.
 5. **UI lê `mart_dbt`.** API FastAPI em `src/detran_ui/`; Vite/React em `ui/`. Card/detalhe mostram `marca`, `modelo`, `ano_veiculo`. Flag em `mart.lotes_interesse` (FK → `mart_dbt.mart_lotes`). Default esconde lote `ativo = false` (toggle “Mostrar inativos”). Chip “Edital inativo” quando `edital_ativo = false`. Rodar `dbt seed` + `dbt run` após cada scrape antes de abrir a UI.
 
 ## Transformação (dbt)
 
-1. **Scraper = EL.** `run.py` + `storage.py` gravam `raw.*` (e `mart.*` até cutover).
+1. **Scraper = EL.** `run.py` + `storage.py` gravam `raw.*` (editais, lotes, lances). Imagens e rótulos continuam em `mart.*`.
 2. **dbt = T.** Models em `transform/` materializam `mart_dbt.*` a partir de `raw.*`. Identidade de lote (`marca` / `modelo` / `ano_veiculo`) vive no dbt (seed `marca_aliases`), não no parser.
-3. **Cutover condicionado.** Rodar `scripts/reconcile_mart.py` antes de apontar notebooks para `mart_dbt`. A UI já lê `mart_dbt` por padrão (`MART_SCHEMA`). `MART_SCHEMA=mart` não tem `marca` / `modelo` / `ano_veiculo`.
+3. **Cutover feito (2026-10-12).** UI e notebooks 03/04 leem `mart_dbt`. `scripts/reconcile_mart.py` é o registro do gate (exit 0 naquela data); não roda no fluxo.
 4. **Testes dbt** em `transform/models/*/_*.yml`, `transform/seeds/_seeds.yml` e `transform/tests/` (unique, not_null, relationships, freshness, skip de prefixo `I/`, faixa de `ano_veiculo`).
 
 ## Orquestração local
@@ -53,7 +53,7 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 
 1. Usar para exploração, análise e watchlist — não para substituir a CLI de carga.
 2. Watchlist (`04`): critérios em dicionário `INTERESSE`; “novo” ≈ `first_seen_at = last_seen_at` no último run.
-3. Identidade (`marca`, `modelo`, `ano_veiculo`) é materializada no dbt a partir de `marca_modelo` + seed `marca_aliases`; o mart guarda a string bruta e as colunas derivadas.
+3. Identidade (`marca`, `modelo`, `ano_veiculo`) é materializada no `mart_dbt` a partir de `marca_modelo` + seed `marca_aliases`.
 
 ## Qualidade e dívida conhecida
 
@@ -61,12 +61,13 @@ Convenções deste repositório. Agentes devem seguir o que já existe em vez de
 |----------|----------------|
 | Pipeline CLI end-to-end | CI (GitHub Actions) |
 | Camadas raw/mart + lances (`--lances`) | Enriquecimento `tipo_veiculo` |
-| Retry HTTP | Cutover notebooks → mart_dbt |
+| Retry HTTP | Histerese de 2 runs; probe de detalhe |
 | Download de imagens (`--imagens`, CAS + rótulos humanos) | Qualidade visual das fotos já válidas |
 | Testes mínimos de parser (`tests/fixtures/`) | Deploy AWS |
 | dbt + Airflow local (`transform/`, `docs/ORCHESTRATION.md`) | Suite completa + cobertura |
-| Identidade `marca` / `modelo` / `ano_veiculo` (dbt + UI) | Histerese de 2 runs; probe de detalhe |
-| Tombstone `ativo` em lotes e editais (dbt + UI) | Expor cor/`valor_inicial` na UI |
+| Identidade `marca` / `modelo` / `ano_veiculo` (dbt + UI) | Expor cor/`valor_inicial` na UI |
+| Tombstone `ativo` em lotes e editais (dbt + UI) | |
+| Cutover: scraper só `raw`; UI e notebooks em `mart_dbt` | |
 
 Ao adicionar testes: preferir fixtures HTML offline exercitando `parsers.py` (sem rede).
 

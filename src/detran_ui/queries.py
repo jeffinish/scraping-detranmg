@@ -6,7 +6,6 @@ Estado da UI: mart.lotes_interesse (FK → mart_dbt.mart_lotes).
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -14,33 +13,25 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from detran_scraper.imagens import imagens_root
 from detran_scraper.imagens import imagem_url as url_imagem
+from detran_scraper.imagens import imagens_root
+from detran_ui.distancia import distancia_betim_km
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_SQL = REPO_ROOT / "sql" / "004_lotes_interesse.sql"
 
 
 def mart_schema() -> str:
-    """Schema analítico lido pela UI (default: mart_dbt).
-
-    Filtros de marca/modelo/ano_veiculo exigem colunas do dbt.
-    MART_SCHEMA=mart (hatch do dual-run Python) não tem essas colunas.
-    """
-    schema = os.getenv("MART_SCHEMA", "mart_dbt")
-    if schema not in {"mart_dbt", "mart"}:
-        raise ValueError(f"MART_SCHEMA inválido: {schema!r}")
-    return schema
+    """Schema analítico lido pela UI."""
+    return "mart_dbt"
 
 
 def _tbl_lotes() -> str:
-    s = mart_schema()
-    return f"{s}.mart_lotes" if s == "mart_dbt" else f"{s}.lotes"
+    return "mart_dbt.mart_lotes"
 
 
 def _tbl_editais() -> str:
-    s = mart_schema()
-    return f"{s}.mart_editais" if s == "mart_dbt" else f"{s}.editais"
+    return "mart_dbt.mart_editais"
 
 
 @dataclass
@@ -56,6 +47,8 @@ class LoteFiltros:
     ano_max: int | None = None
     somente_interesse: bool = False
     mostrar_inativos: bool = False
+    categorias: list[str] = field(default_factory=list)
+    leilao_id: int | None = None
 
 
 def _sql_statements(sql: str) -> list[str]:
@@ -126,6 +119,65 @@ def list_opcoes(engine: Engine) -> dict[str, list[str]]:
         "condicoes": [str(v) for v in condicoes],
         "status_edital": [str(v) for v in status],
     }
+
+
+def list_analytics(engine: Engine) -> dict[str, list[dict]]:
+    """Contagem de lotes ativos por município e por edital.
+
+    Recorte igual ao default da busca: lote ativo, edital ativo,
+    status Publicado ou Em Andamento.
+    """
+    lotes = _tbl_lotes()
+    editais = _tbl_editais()
+    where = """
+        l.ativo
+        AND e.ativo
+        AND e.status IN ('Publicado', 'Em Andamento')
+    """
+    sql_municipios = text(f"""
+        SELECT
+            e.municipio,
+            COUNT(*) FILTER (WHERE l.categoria = 'veiculo') AS veiculo,
+            COUNT(*) FILTER (WHERE l.categoria = 'moto') AS moto
+        FROM {lotes} l
+        JOIN {editais} e ON e.leilao_id = l.leilao_id
+        WHERE {where}
+          AND e.municipio IS NOT NULL
+          AND TRIM(e.municipio) <> ''
+        GROUP BY e.municipio
+        ORDER BY veiculo DESC, e.municipio
+    """)
+    sql_editais = text(f"""
+        SELECT
+            e.leilao_id,
+            e.numero_edital,
+            e.municipio,
+            e.status,
+            e.data_encerramento,
+            COUNT(*) FILTER (WHERE l.categoria = 'veiculo') AS veiculo,
+            COUNT(*) FILTER (WHERE l.categoria = 'moto') AS moto
+        FROM {lotes} l
+        JOIN {editais} e ON e.leilao_id = l.leilao_id
+        WHERE {where}
+        GROUP BY e.leilao_id, e.numero_edital, e.municipio, e.status, e.data_encerramento
+        ORDER BY veiculo DESC, e.data_encerramento ASC NULLS LAST, e.numero_edital
+    """)
+    with engine.connect() as conn:
+        municipios = conn.execute(sql_municipios).mappings().all()
+        editais_rows = conn.execute(sql_editais).mappings().all()
+    return {
+        "municipios": [_analytics_row(row) for row in municipios],
+        "editais": [_analytics_row(row) for row in editais_rows],
+    }
+
+
+def _analytics_row(row: object) -> dict:
+    item = dict(row)
+    item["veiculo"] = int(item["veiculo"])
+    item["moto"] = int(item["moto"])
+    municipio = item.get("municipio")
+    item["distancia_betim_km"] = distancia_betim_km(municipio if isinstance(municipio, str) else None)
+    return item
 
 
 def count_interesse(engine: Engine) -> int:
@@ -231,13 +283,6 @@ def list_lotes(
     where, params = _where(filtros)
     params["limit"] = page_size
     params["offset"] = max(page - 1, 0) * page_size
-    ativo_select = "l.ativo" if mart_schema() == "mart_dbt" else "TRUE AS ativo"
-    edital_ativo_select = (
-        "e.ativo AS edital_ativo"
-        if mart_schema() == "mart_dbt"
-        else "TRUE AS edital_ativo"
-    )
-
     sql = f"""
         SELECT
             l.lote_id,
@@ -257,8 +302,8 @@ def list_lotes(
             l.marca,
             l.modelo,
             l.ano_veiculo,
-            {ativo_select},
-            {edital_ativo_select},
+            l.ativo,
+            e.ativo AS edital_ativo,
             (i.lote_id IS NOT NULL) AS interesse,
             COUNT(*) OVER() AS total_count
         FROM {lotes} l
@@ -338,10 +383,18 @@ def _where(filtros: LoteFiltros) -> tuple[str, dict]:
         params["ano_max"] = int(filtros.ano_max)
         clauses.append("l.ano_veiculo <= :ano_max")
 
+    categorias = [c.strip().lower() for c in filtros.categorias if c and str(c).strip()]
+    if categorias:
+        clauses.append(_in_clause("l.categoria", categorias, "cat", params))
+
+    if filtros.leilao_id is not None:
+        params["leilao_id"] = int(filtros.leilao_id)
+        clauses.append("l.leilao_id = :leilao_id")
+
     if filtros.somente_interesse:
         clauses.append("i.lote_id IS NOT NULL")
 
-    if not filtros.mostrar_inativos and mart_schema() == "mart_dbt":
+    if not filtros.mostrar_inativos:
         clauses.append("l.ativo")
 
     return " AND ".join(clauses), params

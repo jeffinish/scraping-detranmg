@@ -79,16 +79,6 @@
   color: var(--md-sys-color-on-secondary-container);
 }
 
-.sidenav__item--soon {
-  opacity: 0.38;
-  pointer-events: none;
-}
-
-.sidenav__item--soon small {
-  margin-left: auto;
-  font-size: 11px;
-}
-
 .home {
   padding: 24px 16px;
   gap: 16px;
@@ -116,8 +106,70 @@
   width: auto;
 }
 
-.home__hint {
-  font-size: var(--md-sys-typescale-body-small-size);
+.analytics {
+  padding: 24px 16px;
+  gap: 24px;
+}
+
+.analytics h2,
+.analytics h3 {
+  margin: 0;
+  font-weight: 400;
+}
+
+.analytics h2 {
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+.analytics h3 {
+  margin-bottom: 8px;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+}
+
+.analytics p {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.analytics section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.analytics__scroll {
+  overflow-x: auto;
+}
+
+.analytics__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.analytics__table th,
+.analytics__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.analytics__table th {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 500;
+}
+
+.analytics__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics__num a {
+  color: var(--md-sys-color-primary);
+  font-weight: 500;
+  text-decoration: none;
 }
 
 .chip--link {

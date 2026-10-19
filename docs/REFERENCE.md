@@ -74,17 +74,17 @@ python -m detran_scraper.run [--lotes] [--lances] [--imagens] [--max-editais N]
   → fetch_home → parse_editais
   → [opcional] fetch_lotes_pages por edital → parse_lotes_from_pages
   → [--lances] Em Andamento: updateCountdown + updateSingleCountdown + HTML detalhe
-  → persist_editais (raw append + mart upsert + status history)
-  → persist_lotes   (raw append + mart upsert; COALESCE nos campos de enriquecimento)
-  → persist_lances  (raw append + mart upsert; não apaga histórico)
+  → persist_editais (raw append; estado e histórico de status saem do dbt)
+  → persist_lotes   (raw append; enriquecimento last-non-null no dbt)
+  → persist_lances  (raw append; mart_dbt.mart_lotes_lances deduplica)
   → raw.scrape_runs
   → [--imagens] CONSERVADO sem foto: GET img_N até placeholder; CAS em data/imagens/blobs/; raw/mart.lotes_imagens (anexa ao último scrape completo — não cria scrape_run)
   → dbt seed + dbt run  (mart_dbt; identidade marca/modelo/ano_veiculo; categoria veiculo/moto; ativo em lotes e editais)
 ```
 
 - **raw:** append-only por `run_id`
-- **mart:** estado atual por `leilao_id` / `lote_id` (upsert; **não** remove itens que sumiram da home)
-- FK: `mart.lotes.leilao_id` → `mart.editais` (persistir editais antes dos lotes)
+- **mart_dbt:** estado analítico reconstruído pelo dbt (acumula; `ativo` marca presença no último scrape)
+- **mart operacional:** `lotes_interesse`, `lotes_imagens`, `lotes_imagens_labels`. `mart.editais`, `mart.lotes`, `mart.lotes_lances` e `mart.editais_status_history` permanecem no banco e não são mais escritos (FK de lances → `mart.lotes`)
 
 ## Schema (resumo)
 
@@ -95,9 +95,9 @@ Definido em `sql/001_init.sql` (install novo), `sql/002_create_airflow_db.sql` (
 | `raw.scrape_runs` | Metadado do run (`editais_count`, `max_editais`, status) |
 | `raw.editais` / `raw.lotes` | Snapshot por run |
 | `raw.lotes_lances` | Snapshot de lances por run |
-| `mart.editais` / `mart.lotes` | Último estado + `first_seen_at` / `last_seen_at` |
-| `mart.lotes_lances` | Lances únicos acumulados (`lote_id`+valor+horário+arrematante) |
-| `mart.editais_status_history` | Publicado ↔ Finalizado ↔ Em Andamento |
+| `mart.editais` / `mart.lotes` | Congeladas (último upsert Python). Estado atual: `mart_dbt` |
+| `mart.lotes_lances` | Congelada. Lances atuais: `mart_dbt.mart_lotes_lances` (vazia até `--lances`) |
+| `mart.editais_status_history` | Congelada. Histórico atual: `mart_dbt.mart_editais_status_history` |
 | `mart.lotes_interesse` | Flag manual da UI (`sql/004_lotes_interesse.sql`; a UI aplica na subida) |
 | `raw.lotes_imagens` / `mart.lotes_imagens` | Galeria: slot → sha256 + heurística `naive_valida`; blobs em `data/imagens/` |
 | `mart.lotes_imagens_labels` | Rótulo humano por sha256 (`valida` / `motivo`) |
@@ -141,7 +141,7 @@ python -m detran_ui
 cd ui && npm install && npm run dev
 ```
 
-API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor. Default esconde `ativo = false` do lote (query `mostrar_inativos`); `edital_ativo` é payload + chip, não filtro. Flag em `mart.lotes_interesse`. `MART_SCHEMA=mart` (hatch do dual-run Python) não tem as colunas derivadas nem `ativo` / `edital_ativo`. Foto do card: `GET /imagens/{lote_id}` serve a primeira foto usável do CAS (`mart.lotes_imagens`, sem placeholder). Detalhe: `GET /api/lotes/{id}/imagens` lista slots; se o mart não tem linha, baixa e persiste (mesmo `--imagens`). Carrossel no dialog. Rótulos humanos continuam no CSV ([IMAGENS.md](IMAGENS.md)).
+API FastAPI em `http://127.0.0.1:8080` (`src/detran_ui/`). Vite/React em `ui/`. Card: título = `modelo` (fallback `marca_modelo`); chips de `marca` e `ano_veiculo`. Filtros SQL nas mesmas colunas + município, condição, status, valor, `categoria`. Busca e Interesse abrem só com `veiculo`; o chip Moto inclui o resto. Default esconde `ativo = false` do lote (query `mostrar_inativos`); `edital_ativo` é payload + chip, não filtro. `/analytics` conta lotes ativos por município e por edital (edital ativo, status Publicado ou Em Andamento); o número abre `/lotes` com `municipio` ou `leilao_id` e `categoria`. A coluna Até Betim é a distância em linha reta (km) entre a sede do município e Betim. Flag em `mart.lotes_interesse`. Foto do card: `GET /imagens/{lote_id}` serve a primeira foto usável do CAS (`mart.lotes_imagens`, sem placeholder). Detalhe: `GET /api/lotes/{id}/imagens` lista slots; se o mart não tem linha, baixa e persiste (mesmo `--imagens`). Carrossel no dialog. Rótulos humanos continuam no CSV ([IMAGENS.md](IMAGENS.md)).
 
 Após `npm run build`, o mesmo `python -m detran_ui` serve a UI em `http://127.0.0.1:8080`.
 
