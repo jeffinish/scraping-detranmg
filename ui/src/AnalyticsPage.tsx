@@ -6,6 +6,10 @@ function fmtInt(value: number): string {
   return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+function fmtKm(value: number | null): string {
+  return value == null ? "—" : `${fmtInt(value)} km`;
+}
+
 function busca(params: Record<string, string>) {
   return { pathname: "/lotes", search: `?${new URLSearchParams(params).toString()}` };
 }
@@ -32,7 +36,10 @@ export function AnalyticsPage() {
     <main className="main">
       <div className="main__inner analytics">
         <h2>Analytics</h2>
-        <p>Lotes ativos em editais Publicado ou Em Andamento.</p>
+        <p>
+          Lotes ativos em editais Publicado ou Em Andamento. A coluna Até Betim é a distância em
+          linha reta entre sedes municipais.
+        </p>
         {error ? (
           <div className="error">
             <span className="material-symbols-outlined">cloud_off</span>
@@ -50,6 +57,7 @@ export function AnalyticsPage() {
                   <thead>
                     <tr>
                       <th>Município</th>
+                      <th className="analytics__num">Até Betim</th>
                       <th className="analytics__num">Veículos</th>
                       <th className="analytics__num">Motos</th>
                     </tr>
@@ -70,6 +78,7 @@ export function AnalyticsPage() {
                     <tr>
                       <th>Edital</th>
                       <th>Município</th>
+                      <th className="analytics__num">Até Betim</th>
                       <th>Status</th>
                       <th>Encerramento</th>
                       <th className="analytics__num">Veículos</th>
@@ -95,6 +104,7 @@ function MunicipioRow({ row }: { row: AnalyticsMunicipio }) {
   return (
     <tr>
       <td>{row.municipio}</td>
+      <td className="analytics__num">{fmtKm(row.distanciaBetimKm)}</td>
       <td className="analytics__num">
         <Link to={busca({ municipio: row.municipio, categoria: "veiculo" })}>{fmtInt(row.veiculo)}</Link>
       </td>
@@ -111,6 +121,7 @@ function EditalRow({ row }: { row: AnalyticsEdital }) {
     <tr>
       <td>{row.numeroEdital}</td>
       <td>{row.municipio}</td>
+      <td className="analytics__num">{fmtKm(row.distanciaBetimKm)}</td>
       <td>{row.status}</td>
       <td>{row.dataEncerramento || "—"}</td>
       <td className="analytics__num">

@@ -47,6 +47,7 @@ export type AnalyticsMunicipio = {
   municipio: string;
   veiculo: number;
   moto: number;
+  distanciaBetimKm: number | null;
 };
 
 export type AnalyticsEdital = {
@@ -57,6 +58,7 @@ export type AnalyticsEdital = {
   dataEncerramento: string;
   veiculo: number;
   moto: number;
+  distanciaBetimKm: number | null;
 };
 
 export type Analytics = {
@@ -76,6 +78,7 @@ export async function fetchAnalytics(): Promise<Analytics> {
         municipio: String(row.municipio ?? ""),
         veiculo: Number(row.veiculo ?? 0),
         moto: Number(row.moto ?? 0),
+        distanciaBetimKm: km(row.distancia_betim_km),
       };
     }),
     editais: editais.map((item) => {
@@ -89,9 +92,16 @@ export async function fetchAnalytics(): Promise<Analytics> {
         dataEncerramento: data.length >= 10 ? data.slice(0, 10) : data,
         veiculo: Number(row.veiculo ?? 0),
         moto: Number(row.moto ?? 0),
+        distanciaBetimKm: km(row.distancia_betim_km),
       };
     }),
   };
+}
+
+function km(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function fetchOpcoes(): Promise<Opcoes> {

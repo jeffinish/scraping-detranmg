@@ -13,8 +13,9 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from detran_scraper.imagens import imagens_root
 from detran_scraper.imagens import imagem_url as url_imagem
+from detran_scraper.imagens import imagens_root
+from detran_ui.distancia import distancia_betim_km
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_SQL = REPO_ROOT / "sql" / "004_lotes_interesse.sql"
@@ -174,6 +175,8 @@ def _analytics_row(row: object) -> dict:
     item = dict(row)
     item["veiculo"] = int(item["veiculo"])
     item["moto"] = int(item["moto"])
+    municipio = item.get("municipio")
+    item["distancia_betim_km"] = distancia_betim_km(municipio if isinstance(municipio, str) else None)
     return item
 
 
