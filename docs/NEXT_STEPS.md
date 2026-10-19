@@ -6,20 +6,20 @@ Roadmap após a curadoria de identidade do lote (`feat/dbt-lote-identidade`): `m
 
 | Componente | Status |
 |------------|--------|
-| Scraper EL (`run.py`) | Grava `raw.*` + `mart.*` (dual-run) |
-| dbt (`transform/`) | `mart_dbt.*` + seed `marca_aliases`; 29 testes |
-| Reconciliação | `scripts/reconcile_mart.py` — colunas do mart Python ainda batem |
-| UI (Vite/React + FastAPI) | Lê `marca` / `modelo` / `ano_veiculo`; interesse em `mart.lotes_interesse` |
+| Scraper EL (`run.py`) | Grava `raw.*`; imagens em `mart.lotes_imagens` |
+| dbt (`transform/`) | `mart_dbt.*` + seed `marca_aliases`; fonte analítica |
+| Reconciliação | Gate fechado em 2026-10-12 (exit 0). `scripts/reconcile_mart.py` ficou de registro |
+| UI (Vite/React + FastAPI) | Lê `mart_dbt` fixo; interesse em `mart.lotes_interesse` |
 | Airflow local | DAG `detran_scrape_dbt`: scrape lotes → dbt + imagens |
 
 **Carga de referência (2026-08-31):** `run_id=48e777df-…`, 61 editais, 6.346 lotes no scrape; `mart_dbt.mart_lotes` = 11.772 (acumulado sem purge).
 
-## 1. Cutover completo do mart (prioridade alta)
+## 1. Cutover completo do mart (feito em 2026-10-12)
 
-- [ ] Apontar notebooks `03_analise_mart.ipynb` e `04_watchlist_alertas.ipynb` para `mart_dbt.*`
-- [ ] Remover upsert de `mart.*` em `storage.py` (scraper = só EL)
-- [ ] Atualizar `docs/REFERENCE.md` com schema canônico `mart_dbt`
-- [ ] Rodar `reconcile_mart.py` uma última vez; depois simplificar ou arquivar o script
+- [x] Apontar notebooks `03_analise_mart.ipynb` e `04_watchlist_alertas.ipynb` para `mart_dbt.*`
+- [x] Remover upsert analítico em `storage.py` (editais, lotes, lances, histórico de status)
+- [x] Atualizar `docs/REFERENCE.md` com schema canônico `mart_dbt`
+- [x] `reconcile_mart.py` exit 0 na carga `68513913-…`; script saiu do fluxo
 
 ## 2. CI (prioridade alta)
 
@@ -72,7 +72,6 @@ docker compose up -d
 python -m detran_scraper.run --lotes
 python -m detran_scraper.run --imagens
 cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
-python scripts/reconcile_mart.py
 
 # UI (após dbt)
 pip install -e ".[ui]"

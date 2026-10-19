@@ -6,11 +6,11 @@ Contrato para replicar este padrão em outros projetos de scraping/EL.
 
 | Peça | Papel |
 |------|-------|
-| `python -m detran_scraper.run` | **EL** — grava `raw.*` e `mart.*` (Python, até cutover) |
+| `python -m detran_scraper.run` | **EL** — grava `raw.*`; imagens em `mart.lotes_imagens` |
 | `transform/` (dbt) | **T** — reconstrói `mart_dbt.*` a partir de `raw.*` |
 | `src/detran_ui/` + `ui/` | **Consumo** — lê `mart_dbt`; grava `mart.lotes_interesse` |
 | Airflow (`docker-compose.airflow.yml`) | Scheduler: scrape lotes → (dbt seed+run → test) ∥ scrape imagens |
-| `scripts/reconcile_mart.py` | Gate de cutover: compara `mart` vs `mart_dbt` |
+| `scripts/reconcile_mart.py` | Histórico do gate (2026-10-12, exit 0). Fora do fluxo |
 
 AWS (EventBridge, ECS, MWAA) fica para o capítulo seguinte, quando o DAG local já rodar todo dia sem depender do PC.
 
@@ -31,15 +31,12 @@ python -m detran_scraper.run --imagens   # galeria CONSERVADO; ver docs/IMAGENS.
 pip install -r transform/requirements.txt
 cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
 
-# 4. Reconciliação
-python scripts/reconcile_mart.py
-
-# 5. UI (lê mart_dbt — obrigatório após dbt)
+# 4. UI (lê mart_dbt — obrigatório após dbt)
 pip install -e ".[ui]"
 python -m detran_ui
 # dev: cd ui && npm run dev
 
-# 6. Airflow (opcional)
+# 5. Airflow (opcional)
 # Pré-requisito: banco `airflow` no Postgres (sql/002 ou CREATE DATABASE manual)
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml build airflow
 docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d airflow
@@ -51,8 +48,7 @@ docker exec detran_airflow airflow dags trigger detran_scrape_dbt
 
 | Variável | Uso |
 |----------|-----|
-| `DATABASE_URL` | Scraper + reconcile + UI (host: `localhost:5435`) |
-| `MART_SCHEMA` | Schema analítico da UI (default: `mart_dbt`) |
+| `DATABASE_URL` | Scraper + UI (host: `localhost:5435`) |
 | `IMAGENS_DIR` | Galeria CAS (`--imagens`); default `data/imagens/` — [IMAGENS.md](IMAGENS.md) |
 | `DBT_HOST`, `DBT_PORT`, … | dbt (`profiles.yml`); no Airflow: `postgres:5432` |
 | `DETRAN_COOKIE` | Opcional; necessário para `--lances` (não no DAG padrão) |
@@ -74,16 +70,16 @@ Copie este esqueleto:
 
 1. **CLI de carga** com exit code ≠ 0 em falha (`python -m <pkg>.run …`)
 2. **Camada raw** append-only no Postgres (schema `raw`)
-3. **Pasta `transform/`** com dbt: staging 1:1 + mart em schema paralelo até reconciliar
+3. **Pasta `transform/`** com dbt: staging 1:1 + mart analítico. Um mart Python paralelo só até o primeiro reconcile limpo
 4. **Um DAG** com scrape → (dbt run ∥ imagens) → dbt test
-5. **Script de reconciliação** antes de apontar notebooks/BI para o mart dbt
+5. **Um reconcile** antes de apontar notebooks/BI para o mart dbt; depois o script sai do fluxo diário
 6. **`.env.example`** documentando `DATABASE_URL` e secrets de sessão
 
 Não duplicar lógica de transformação no Python depois do cutover — o mart dbt vira fonte de verdade analítica.
 
-## Cutover (quando `reconcile_mart.py` passar)
+## Cutover (fechado em 2026-10-12)
 
-1. ~~Apontar UI para `mart_dbt`~~ (feito — `MART_SCHEMA=mart_dbt`)
-2. Apontar notebooks `03` e `04` para `mart_dbt.*`
-3. Remover upsert de mart em `storage.py` (rodada seguinte)
-4. Curadoria extra (tombstone, `cor`/`valor_inicial` na UI) com testes regressando o mart
+1. UI lê `mart_dbt` (sem `MART_SCHEMA`)
+2. Notebooks `03` e `04` leem `mart_dbt.*`
+3. Scraper não faz upsert de `mart.editais` / `mart.lotes` / lances / histórico de status
+4. Curadoria ainda aberta: histerese de `ativo`, expor `cor` / `valor_inicial` na UI

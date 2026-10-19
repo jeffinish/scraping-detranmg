@@ -177,7 +177,10 @@ def _dedupe_lances(lances: list[Lance]) -> list[Lance]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Executa scrape de editais (e opcionalmente lotes) e grava nas camadas raw/mart."""
+    """Executa scrape de editais (e opcionalmente lotes) e grava em raw.
+
+    Imagens e rótulos continuam em mart. O estado analítico sai do dbt.
+    """
     load_dotenv()
     parser = argparse.ArgumentParser(description="Scrape DETRAN/MG → Postgres")
     parser.add_argument(
@@ -301,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
                         first_pages,
                     )
 
-        status_changes = persist_editais(engine, editais, run_id)
+        editais_saved = persist_editais(engine, editais, run_id)
         lotes_saved = persist_lotes(engine, lotes, run_id) if lotes else 0
         lances_saved = persist_lances(engine, lances, run_id) if lances else 0
         finish_scrape_run(
@@ -312,9 +315,8 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         logger.info(
-            "Concluído: %d editais, %d mudanças de status, %d lotes, %d lances novos",
-            len(editais),
-            status_changes,
+            "Concluído (raw): %d editais, %d lotes, %d lances",
+            editais_saved,
             lotes_saved,
             lances_saved,
         )

@@ -6,7 +6,6 @@ Estado da UI: mart.lotes_interesse (FK → mart_dbt.mart_lotes).
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -22,25 +21,16 @@ SCHEMA_SQL = REPO_ROOT / "sql" / "004_lotes_interesse.sql"
 
 
 def mart_schema() -> str:
-    """Schema analítico lido pela UI (default: mart_dbt).
-
-    Filtros de marca/modelo/ano_veiculo exigem colunas do dbt.
-    MART_SCHEMA=mart (hatch do dual-run Python) não tem essas colunas.
-    """
-    schema = os.getenv("MART_SCHEMA", "mart_dbt")
-    if schema not in {"mart_dbt", "mart"}:
-        raise ValueError(f"MART_SCHEMA inválido: {schema!r}")
-    return schema
+    """Schema analítico lido pela UI."""
+    return "mart_dbt"
 
 
 def _tbl_lotes() -> str:
-    s = mart_schema()
-    return f"{s}.mart_lotes" if s == "mart_dbt" else f"{s}.lotes"
+    return "mart_dbt.mart_lotes"
 
 
 def _tbl_editais() -> str:
-    s = mart_schema()
-    return f"{s}.mart_editais" if s == "mart_dbt" else f"{s}.editais"
+    return "mart_dbt.mart_editais"
 
 
 @dataclass
@@ -134,10 +124,8 @@ def list_analytics(engine: Engine) -> dict[str, list[dict]]:
     """Contagem de lotes ativos por município e por edital.
 
     Recorte igual ao default da busca: lote ativo, edital ativo,
-    status Publicado ou Em Andamento. Exige mart_dbt (coluna categoria).
+    status Publicado ou Em Andamento.
     """
-    if mart_schema() != "mart_dbt":
-        raise ValueError("Analytics exige MART_SCHEMA=mart_dbt")
     lotes = _tbl_lotes()
     editais = _tbl_editais()
     where = """
@@ -292,13 +280,6 @@ def list_lotes(
     where, params = _where(filtros)
     params["limit"] = page_size
     params["offset"] = max(page - 1, 0) * page_size
-    ativo_select = "l.ativo" if mart_schema() == "mart_dbt" else "TRUE AS ativo"
-    edital_ativo_select = (
-        "e.ativo AS edital_ativo"
-        if mart_schema() == "mart_dbt"
-        else "TRUE AS edital_ativo"
-    )
-
     sql = f"""
         SELECT
             l.lote_id,
@@ -318,8 +299,8 @@ def list_lotes(
             l.marca,
             l.modelo,
             l.ano_veiculo,
-            {ativo_select},
-            {edital_ativo_select},
+            l.ativo,
+            e.ativo AS edital_ativo,
             (i.lote_id IS NOT NULL) AS interesse,
             COUNT(*) OVER() AS total_count
         FROM {lotes} l
@@ -400,7 +381,7 @@ def _where(filtros: LoteFiltros) -> tuple[str, dict]:
         clauses.append("l.ano_veiculo <= :ano_max")
 
     categorias = [c.strip().lower() for c in filtros.categorias if c and str(c).strip()]
-    if categorias and mart_schema() == "mart_dbt":
+    if categorias:
         clauses.append(_in_clause("l.categoria", categorias, "cat", params))
 
     if filtros.leilao_id is not None:
@@ -410,7 +391,7 @@ def _where(filtros: LoteFiltros) -> tuple[str, dict]:
     if filtros.somente_interesse:
         clauses.append("i.lote_id IS NOT NULL")
 
-    if not filtros.mostrar_inativos and mart_schema() == "mart_dbt":
+    if not filtros.mostrar_inativos:
         clauses.append("l.ativo")
 
     return " AND ".join(clauses), params

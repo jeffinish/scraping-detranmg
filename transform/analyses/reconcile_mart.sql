@@ -1,5 +1,5 @@
--- Compara mart Python (mart.*) vs mart dbt (mart_dbt.*).
--- Rode após `dbt run`. Divergências = linhas em EXCEPT (deve retornar vazio no cutover).
+-- Histórico do gate de cutover (fechado em 2026-10-12). Não faz parte do pipeline.
+-- Depois de um scrape novo, mart.* analítico fica parado e o EXCEPT deixa de ser vazio.
 
 -- Contagens
 SELECT 'editais' AS entity,

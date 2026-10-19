@@ -4,7 +4,6 @@ models:
   - name: mart_editais
     description: >
       Estado atual de cada leilão, reconstruído a partir de raw.editais.
-      Equivalente a mart.editais (upsert Python).
       ativo = presente no último scrape de home com sucesso e pelo menos um edital.
     columns:
       - name: leilao_id
@@ -38,7 +37,7 @@ models:
   - name: mart_lotes
     description: >
       Estado atual de cada lote. Listagem do último snapshot;
-      campos de enriquecimento com last-non-null (equivalente ao COALESCE do storage.py).
+      campos de enriquecimento com last-non-null (um --lotes sem --lances não apaga o detalhe).
       marca / modelo / ano_veiculo são derivados de marca_modelo + seed marca_aliases.
       categoria (veiculo/moto) vem do seed moto_regras, não do filtro tipo_veiculo do portal.
       ativo = presente no último scrape completo de lotes (sem --max-editais).

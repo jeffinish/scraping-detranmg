@@ -22,48 +22,6 @@ INSERT_RAW_EDITAL = text("""
     )
 """)
 
-SELECT_MART_STATUS = text("""
-    SELECT status FROM mart.editais WHERE leilao_id = :leilao_id
-""")
-
-INSERT_MART_EDITAL = text("""
-    INSERT INTO mart.editais (
-        leilao_id, numero_edital, municipio, patio, status, data_encerramento,
-        url_detalhes, first_seen_at, last_seen_at, status_changed_at,
-        raw_hash, last_run_id
-    ) VALUES (
-        :leilao_id, :numero_edital, :municipio, :patio, :status, :data_encerramento,
-        :url_detalhes, :seen_at, :seen_at, :seen_at,
-        :raw_hash, :run_id
-    )
-""")
-
-UPDATE_MART_EDITAL = text("""
-    UPDATE mart.editais SET
-        numero_edital     = :numero_edital,
-        municipio         = :municipio,
-        patio             = :patio,
-        status            = :status,
-        data_encerramento = :data_encerramento,
-        url_detalhes      = :url_detalhes,
-        last_seen_at      = :seen_at,
-        status_changed_at = CASE
-            WHEN status IS DISTINCT FROM :status THEN :seen_at
-            ELSE status_changed_at
-        END,
-        raw_hash          = :raw_hash,
-        last_run_id       = :run_id
-    WHERE leilao_id = :leilao_id
-""")
-
-INSERT_STATUS_HISTORY = text("""
-    INSERT INTO mart.editais_status_history (
-        leilao_id, run_id, old_status, new_status, changed_at
-    ) VALUES (
-        :leilao_id, :run_id, :old_status, :new_status, :changed_at
-    )
-""")
-
 INSERT_RAW_LOTE = text("""
     INSERT INTO raw.lotes (
         run_id, scraped_at, leilao_id, lote_id, numero_lote, condicao,
@@ -78,47 +36,6 @@ INSERT_RAW_LOTE = text("""
     )
 """)
 
-SELECT_MART_LOTE = text("""
-    SELECT 1 FROM mart.lotes WHERE lote_id = :lote_id
-""")
-
-INSERT_MART_LOTE = text("""
-    INSERT INTO mart.lotes (
-        lote_id, leilao_id, numero_lote, condicao, marca_modelo,
-        valor_inicial, valor_atual, url_detalhes,
-        first_seen_at, last_seen_at, raw_hash, last_run_id,
-        cor, ano_modelo, ano_fabricacao, combustivel,
-        valor_incremento, status_lote
-    ) VALUES (
-        :lote_id, :leilao_id, :numero_lote, :condicao, :marca_modelo,
-        :valor_inicial, :valor_atual, :url_detalhes,
-        :seen_at, :seen_at, :raw_hash, :run_id,
-        :cor, :ano_modelo, :ano_fabricacao, :combustivel,
-        :valor_incremento, :status_lote
-    )
-""")
-
-UPDATE_MART_LOTE = text("""
-    UPDATE mart.lotes SET
-        leilao_id        = :leilao_id,
-        numero_lote      = :numero_lote,
-        condicao         = :condicao,
-        marca_modelo     = :marca_modelo,
-        valor_atual      = :valor_atual,
-        url_detalhes     = :url_detalhes,
-        last_seen_at     = :seen_at,
-        raw_hash         = :raw_hash,
-        last_run_id      = :run_id,
-        valor_inicial    = COALESCE(:valor_inicial, valor_inicial),
-        cor              = COALESCE(:cor, cor),
-        ano_modelo       = COALESCE(:ano_modelo, ano_modelo),
-        ano_fabricacao   = COALESCE(:ano_fabricacao, ano_fabricacao),
-        combustivel      = COALESCE(:combustivel, combustivel),
-        valor_incremento = COALESCE(:valor_incremento, valor_incremento),
-        status_lote      = COALESCE(:status_lote, status_lote)
-    WHERE lote_id = :lote_id
-""")
-
 INSERT_RAW_LANCE = text("""
     INSERT INTO raw.lotes_lances (
         run_id, scraped_at, lote_id, leilao_id, valor, lance_em,
@@ -127,32 +44,6 @@ INSERT_RAW_LANCE = text("""
         :run_id, :scraped_at, :lote_id, :leilao_id, :valor, :lance_em,
         :arrematante, :peso, :valor_quilo
     )
-""")
-
-SELECT_MART_LANCE = text("""
-    SELECT id FROM mart.lotes_lances
-    WHERE lote_id = :lote_id
-      AND valor IS NOT DISTINCT FROM :valor
-      AND lance_em IS NOT DISTINCT FROM :lance_em
-      AND arrematante IS NOT DISTINCT FROM :arrematante
-""")
-
-INSERT_MART_LANCE = text("""
-    INSERT INTO mart.lotes_lances (
-        lote_id, leilao_id, valor, lance_em, arrematante, peso, valor_quilo,
-        first_seen_at, last_seen_at
-    ) VALUES (
-        :lote_id, :leilao_id, :valor, :lance_em, :arrematante, :peso, :valor_quilo,
-        :seen_at, :seen_at
-    )
-""")
-
-UPDATE_MART_LANCE = text("""
-    UPDATE mart.lotes_lances SET
-        last_seen_at = :seen_at,
-        peso = COALESCE(:peso, peso),
-        valor_quilo = COALESCE(:valor_quilo, valor_quilo)
-    WHERE id = :id
 """)
 
 _SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
@@ -216,43 +107,18 @@ def persist_editais(
     editais: list[Edital],
     run_id: uuid.UUID,
 ) -> int:
-    """Grava editais na camada raw e atualiza mart (com histórico de status).
+    """Grava editais em raw. O estado atual sai do dbt (`mart_dbt.mart_editais`).
 
     Returns:
-        Quantidade de mudanças de status registradas.
+        Quantidade de editais gravados.
     """
     seen_at = datetime.now(UTC)
-    status_changes = 0
 
     with engine.begin() as conn:
         for edital in editais:
-            params = _edital_params(edital, run_id, seen_at)
+            conn.execute(INSERT_RAW_EDITAL, _edital_params(edital, run_id, seen_at))
 
-            conn.execute(INSERT_RAW_EDITAL, params)
-
-            existing = conn.execute(
-                SELECT_MART_STATUS, {"leilao_id": edital.leilao_id}
-            ).fetchone()
-
-            if existing is None:
-                conn.execute(INSERT_MART_EDITAL, params)
-            else:
-                old_status = existing[0]
-                conn.execute(UPDATE_MART_EDITAL, params)
-                if old_status != edital.status:
-                    conn.execute(
-                        INSERT_STATUS_HISTORY,
-                        {
-                            "leilao_id": edital.leilao_id,
-                            "run_id": run_id,
-                            "old_status": old_status,
-                            "new_status": edital.status,
-                            "changed_at": seen_at,
-                        },
-                    )
-                    status_changes += 1
-
-    return status_changes
+    return len(editais)
 
 
 def persist_lotes(
@@ -260,7 +126,7 @@ def persist_lotes(
     lotes: list[Lote],
     run_id: uuid.UUID,
 ) -> int:
-    """Grava lotes na camada raw e atualiza mart.
+    """Grava lotes em raw. O estado atual sai do dbt (`mart_dbt.mart_lotes`).
 
     Returns:
         Quantidade de lotes gravados.
@@ -272,17 +138,7 @@ def persist_lotes(
 
     with engine.begin() as conn:
         for lote in lotes:
-            params = _lote_params(lote, run_id, seen_at)
-            conn.execute(INSERT_RAW_LOTE, params)
-
-            existing = conn.execute(
-                SELECT_MART_LOTE, {"lote_id": lote.lote_id}
-            ).fetchone()
-
-            if existing is None:
-                conn.execute(INSERT_MART_LOTE, params)
-            else:
-                conn.execute(UPDATE_MART_LOTE, params)
+            conn.execute(INSERT_RAW_LOTE, _lote_params(lote, run_id, seen_at))
 
     return len(lotes)
 
@@ -311,30 +167,19 @@ def persist_lances(
     lances: list[Lance],
     run_id: uuid.UUID,
 ) -> int:
-    """Append raw + upsert mart. Não apaga lances já gravados.
+    """Append em raw.lotes_lances. O mart analítico é `mart_dbt.mart_lotes_lances`.
 
     Returns:
-        Quantidade de lances novos inseridos no mart.
+        Quantidade de lances gravados neste run.
     """
     if not lances:
         return 0
 
     seen_at = datetime.now(UTC)
-    inserted = 0
     with engine.begin() as conn:
         for lance in lances:
-            params = _lance_params(lance, run_id, seen_at)
-            conn.execute(INSERT_RAW_LANCE, params)
-            existing = conn.execute(SELECT_MART_LOTE, {"lote_id": lance.lote_id}).fetchone()
-            if existing is None:
-                continue
-            row = conn.execute(SELECT_MART_LANCE, params).fetchone()
-            if row is None:
-                conn.execute(INSERT_MART_LANCE, params)
-                inserted += 1
-            else:
-                conn.execute(UPDATE_MART_LANCE, {**params, "id": row[0]})
-    return inserted
+            conn.execute(INSERT_RAW_LANCE, _lance_params(lance, run_id, seen_at))
+    return len(lances)
 
 
 SELECT_LATEST_FULL_RUN = text("""

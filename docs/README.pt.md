@@ -26,7 +26,7 @@ Pipeline local: scraping → Postgres (`raw` / `mart`) → dbt (`mart_dbt`) → 
 | Persistência de `tipo_veiculo` (só existe como filtro UI) | Pendente |
 | Galeria de fotos (`--imagens`, CAS + rótulos) | Pronto — ver [IMAGENS.md](IMAGENS.md) |
 | Score de qualidade nas fotos já válidas | Pendente |
-| Cutover notebooks → `mart_dbt` / remover upsert Python | Pendente |
+| Cutover: notebooks e UI em `mart_dbt`; scraper analítico só em `raw` | Pronto |
 | Deploy AWS | Pendente |
 
 **Última carga de referência** (`2026-08-31`, `48e777df-…`): 61 editais · 6.346 lotes no run; `mart_dbt.mart_lotes` = 11.772 (upsert sem purge).
@@ -114,9 +114,7 @@ with DetranClient() as client:
 run.py --lotes
   ├─► raw.scrape_runs
   ├─► raw.editais / raw.lotes     # snapshot por run
-  ├─► mart.editais / mart.lotes   # estado atual (upsert Python, dual-run)
-  ├─► mart_dbt.* (dbt)            # mart analítico (UI); marca/modelo/ano_veiculo
-  ├─► mart.editais_status_history
+  ├─► mart_dbt.* (dbt)            # estado analítico (UI e notebooks)
   ├─► mart.lotes_interesse        # flag da UI (sql/004)
   └─► mart.lotes_imagens          # galeria CAS + labels (sql/006; IMAGENS.md)
 ```

@@ -8,7 +8,7 @@ Local data pipeline that scrapes **auction notices and vehicle lots** from the [
 
 - Layered Python package (~700 LOC): HTTP client → HTML parsers → immutable domain models → Postgres persistence
 - **Raw / mart** pattern with run tracking, status history, and `first_seen_at` / `last_seen_at` for change detection
-- **dbt** rebuilds `mart_dbt` from `raw` with tests and docs (parallel to Python mart until cutover); lot identity (`marca` / `modelo` / `ano_veiculo`) from `marca_modelo` + seed `marca_aliases`
+- **dbt** rebuilds `mart_dbt` from `raw` with tests and docs; lot identity (`marca` / `modelo` / `ano_veiculo`) from `marca_modelo` + seed `marca_aliases`. The scraper writes `raw` only for notices, lots, and bids
 - **Airflow** local DAG: daily scrape → dbt seed+run → dbt test; imagens da galeria em paralelo (`--imagens`)
 - **Vite/React UI** reads `mart_dbt` via FastAPI (parsed brand/model/year on cards); interest flags in `mart.lotes_interesse`
 - Resilient HTTP: browser-like headers, session cookies, exponential retry on transient errors
@@ -40,7 +40,6 @@ jupyter notebook notebooks/03_analise_mart.ipynb
 # dbt (after scrape; Postgres on :5435)
 pip install -e ".[dbt]"
 cd transform && dbt seed --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
-python scripts/reconcile_mart.py
 
 # Browse lots + star watchlist (reads mart_dbt — run dbt first)
 pip install -e ".[ui]"
@@ -76,7 +75,7 @@ flowchart LR
 | HTTP | `client.py` | Fetch pages, pagination, retry |
 | Parse | `parsers.py` | Single source of truth for HTML selectors |
 | Domain | `models.py` | Frozen dataclasses, `Decimal` for BRL |
-| Persist | `storage.py` | Raw append + mart upsert |
+| Persist | `storage.py` | Raw append; imagens e rótulos em `mart` |
 | Transform | `transform/` | dbt: staging + `mart_dbt` |
 | CLI | `run.py` | Orchestration |
 | UI | `detran_ui/` + `ui/` | FastAPI + Vite/React: browse, filter, star lots |
@@ -87,9 +86,7 @@ flowchart LR
 run.py --lotes
   ├─► raw.scrape_runs              # run metadata
   ├─► raw.editais / raw.lotes      # append-only snapshot per run
-  ├─► mart.editais / mart.lotes    # current state (upsert Python, dual-run)
-  ├─► mart_dbt.* (dbt)             # analytical mart (UI + cutover target)
-  ├─► mart.editais_status_history  # status transitions
+  ├─► mart_dbt.* (dbt)             # analytical mart (UI, notebooks)
   ├─► mart.lotes_interesse         # UI star flag (sql/004)
   └─► mart.lotes_imagens (+ labels) # gallery CAS (sql/006; docs/IMAGENS.md)
 ```
@@ -126,8 +123,9 @@ Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in the GU
 | End-to-end CLI pipeline | CI (GitHub Actions) |
 | Raw/mart Postgres layers | `tipo_veiculo` enrichment |
 | Parser unit tests (fixtures) | AWS deploy |
-| Watchlist notebook | Cutover notebooks → mart_dbt |
-| dbt `mart_dbt` + reconcile script | Expose `--lances` fields (`cor`, `valor_inicial`) in UI |
+| Watchlist notebook | Expose `--lances` fields (`cor`, `valor_inicial`) in UI |
+| dbt `mart_dbt`; notebooks 03/04 read it | |
+| Scraper writes analytical state only to `raw` | |
 | Airflow local DAG | |
 | Local Vite/React lot browser (reads `mart_dbt`) | |
 | Split `marca_modelo` → `marca` / `modelo` / `ano_veiculo` (dbt + UI) | |
@@ -136,7 +134,7 @@ Notebooks `03` and `04` require a prior `--lotes` scrape. To star lots in the GU
 ## Limitations
 
 - Lot **listing cards** do not expose `tipo_veiculo` (portal filter only) — see [`docs/REFERENCE.md`](docs/REFERENCE.md)
-- Mart does not tombstone items removed from the portal
+- `mart_dbt.ativo` marks notices and lots missing from the latest full scrape; rows are kept
 - Scrapes only publicly available listing pages; use reasonable request rates
 
 ## Repository layout
@@ -148,7 +146,7 @@ scraping-detranmg/
 ├── ui/                     # Vite + React client
 ├── transform/              # dbt: staging + mart_dbt + seeds/marca_aliases
 ├── airflow/dags/           # Airflow DAGs
-├── scripts/                # reconcile_mart.py
+├── scripts/                # reconcile_mart.py (cutover archive, 2026-10-12)
 ├── tests/fixtures/         # offline HTML for parser tests
 ├── sql/                    # 001 + 002_airflow + 003_lances + 004_interesse + 005_max_editais + 006_imagens
 ├── notebooks/              # exploration and analytics

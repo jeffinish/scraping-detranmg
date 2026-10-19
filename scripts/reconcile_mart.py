@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Compara mart Python (mart.*) com mart dbt (mart_dbt.*).
+"""Registro histórico do gate de cutover (fechado em 2026-10-12, exit 0).
 
-Uso:
+O scraper não grava mais mart.editais, mart.lotes, mart.lotes_lances nem
+mart.editais_status_history. Um scrape novo deixa essas tabelas paradas, então
+este script passa a mostrar DIFF de propósito. Não entra no pipeline.
+
+Uso (só para reler o último alinhamento, antes de um scrape novo):
     python scripts/reconcile_mart.py
-
-Requer DATABASE_URL no ambiente (ou .env na raiz do repo).
-Exit 0 = contagens batem e sem divergência de colunas nas amostras;
-exit 1 = há diferenças (cutover ainda não recomendado).
 """
 
 from __future__ import annotations
@@ -103,9 +103,9 @@ def main() -> int:
             ok = False
 
     if ok:
-        print("\nReconciliação OK — candidato a cutover dos notebooks para mart_dbt.")
+        print("\nTabelas analíticas Python e mart_dbt ainda coincidem (snapshot congelado).")
         return 0
-    print("\nHá divergências — manter dual-run até alinhar.")
+    print("\nDivergência esperada depois de um scrape novo: o mart Python analítico não é mais escrito.")
     return 1
 
 
